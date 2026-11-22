@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Infrastructure: external services (Azure Blob / local storage), Hangfire jobs, identity. Depends on Application; never on Persistence. -->
+  <PropertyGroup>
+    <RootNamespace>ClaimsModule.Infrastructure</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ClaimsModule.Application\ClaimsModule.Application.csproj" />
+  </ItemGroup>
+</Project>

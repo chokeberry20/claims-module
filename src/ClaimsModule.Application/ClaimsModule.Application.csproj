@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Application: MediatR commands/queries, validators, DTOs, abstractions, AutoMapper profiles. Depends on Domain only. -->
+  <PropertyGroup>
+    <RootNamespace>ClaimsModule.Application</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ClaimsModule.Domain\ClaimsModule.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ClaimsModule.Application.Tests" />
+  </ItemGroup>
+</Project>

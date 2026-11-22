@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Persistence: EF Core DbContext, configurations, migrations, repositories, Unit of Work. Depends on Application (implements its abstractions). -->
+  <PropertyGroup>
+    <RootNamespace>ClaimsModule.Persistence</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ClaimsModule.Application\ClaimsModule.Application.csproj" />
+  </ItemGroup>
+</Project>
