@@ -1,5 +1,7 @@
 using ClaimsModule.Domain.Claims;
+using ClaimsModule.Domain.Claims.Workflow;
 using ClaimsModule.Persistence.Entities;
+using ClaimsModule.Persistence.Seed;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -44,6 +46,17 @@ internal sealed class ClaimStatusTransitionConfiguration : IEntityTypeConfigurat
         builder.Property(t => t.RequiresReason).IsRequired().HasDefaultValue(false);
         builder.Property(t => t.Description).HasMaxLength(255).IsRequired();
         builder.HasIndex(t => new { t.FromStatus, t.ToStatus }).IsUnique();
+
+        // A single source of truth: the table is seeded from the domain state machine (D-08).
+        builder.HasData(ClaimWorkflow.Transitions.Select(rule => new ClaimStatusTransition
+        {
+            ClaimStatusTransitionId = SeedData.TransitionId(rule),
+            FromStatus = rule.From,
+            ToStatus = rule.To,
+            RequiredPermission = rule.RequiredRole,
+            RequiresReason = rule.RequiresReason,
+            Description = rule.Description,
+        }));
     }
 }
 

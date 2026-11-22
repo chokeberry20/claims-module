@@ -639,6 +639,140 @@ namespace ClaimsModule.Persistence.Migrations
                     b.HasIndex("OrganisationId");
 
                     b.ToTable("CauseOfLossCodes", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("aba0e4f8-34d3-8171-9a31-f6b9c5a1889f"),
+                            Code = "COL-FIRE",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            IsDeleted = false,
+                            Name = "Fire",
+                            OrganisationId = new Guid("3f2b8c1e-6d4a-4e9b-a7c2-5d1e0f9b8a64"),
+                            PerilCategory = "Property",
+                            SortOrder = 10
+                        },
+                        new
+                        {
+                            Id = new Guid("46549c37-d254-8dd5-8a49-ce73eac26c88"),
+                            Code = "COL-FLOOD",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            IsDeleted = false,
+                            Name = "Flood",
+                            OrganisationId = new Guid("3f2b8c1e-6d4a-4e9b-a7c2-5d1e0f9b8a64"),
+                            PerilCategory = "Weather",
+                            SortOrder = 20
+                        },
+                        new
+                        {
+                            Id = new Guid("3c9af9e4-008e-8d32-8fd5-860cf423fcbd"),
+                            Code = "COL-THEFT",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            IsDeleted = false,
+                            Name = "Theft",
+                            OrganisationId = new Guid("3f2b8c1e-6d4a-4e9b-a7c2-5d1e0f9b8a64"),
+                            PerilCategory = "Crime",
+                            SortOrder = 30
+                        },
+                        new
+                        {
+                            Id = new Guid("383fac17-4a98-8fc6-a29b-693cc88cdeb4"),
+                            Code = "COL-VEH-COL",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            IsDeleted = false,
+                            Name = "Vehicle Collision",
+                            OrganisationId = new Guid("3f2b8c1e-6d4a-4e9b-a7c2-5d1e0f9b8a64"),
+                            PerilCategory = "Auto",
+                            SortOrder = 40
+                        },
+                        new
+                        {
+                            Id = new Guid("e54f4051-c2ce-8202-89ab-02206b25b815"),
+                            Code = "COL-VEH-COMP",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            IsDeleted = false,
+                            Name = "Vehicle Comprehensive",
+                            OrganisationId = new Guid("3f2b8c1e-6d4a-4e9b-a7c2-5d1e0f9b8a64"),
+                            PerilCategory = "Auto",
+                            SortOrder = 50
+                        },
+                        new
+                        {
+                            Id = new Guid("3bc61cd4-c73d-8b59-957d-53faa0398ddc"),
+                            Code = "COL-LIAB",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            IsDeleted = false,
+                            Name = "Third Party Liability",
+                            OrganisationId = new Guid("3f2b8c1e-6d4a-4e9b-a7c2-5d1e0f9b8a64"),
+                            PerilCategory = "Liability",
+                            SortOrder = 60
+                        },
+                        new
+                        {
+                            Id = new Guid("867bd163-8091-8c53-8aa4-1ab764733da9"),
+                            Code = "COL-EQUIP",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            IsDeleted = false,
+                            Name = "Equipment Breakdown",
+                            OrganisationId = new Guid("3f2b8c1e-6d4a-4e9b-a7c2-5d1e0f9b8a64"),
+                            PerilCategory = "Equipment",
+                            SortOrder = 70
+                        },
+                        new
+                        {
+                            Id = new Guid("0e0b415b-a154-8104-b800-f6d8a05f0ae6"),
+                            Code = "COL-WIND",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            IsDeleted = false,
+                            Name = "Wind / Storm",
+                            OrganisationId = new Guid("3f2b8c1e-6d4a-4e9b-a7c2-5d1e0f9b8a64"),
+                            PerilCategory = "Weather",
+                            SortOrder = 80
+                        },
+                        new
+                        {
+                            Id = new Guid("a203b2b1-fe5d-8135-a92b-e71d6571ac45"),
+                            Code = "COL-INJURY",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            IsDeleted = false,
+                            Name = "Bodily Injury",
+                            OrganisationId = new Guid("3f2b8c1e-6d4a-4e9b-a7c2-5d1e0f9b8a64"),
+                            PerilCategory = "Liability",
+                            SortOrder = 90
+                        },
+                        new
+                        {
+                            Id = new Guid("b1fb919c-f42d-8cbc-a910-ba8a9a9b2534"),
+                            Code = "COL-OTHER",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            IsDeleted = false,
+                            Name = "Other / Unknown",
+                            OrganisationId = new Guid("3f2b8c1e-6d4a-4e9b-a7c2-5d1e0f9b8a64"),
+                            PerilCategory = "General",
+                            SortOrder = 100
+                        },
+                        new
+                        {
+                            Id = new Guid("c1752185-79d8-8d29-9a17-4e2b0e3c31a2"),
+                            Code = "COL-LEGACY-SUBS",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = false,
+                            IsDeleted = false,
+                            Name = "Subsidence (legacy, retired)",
+                            OrganisationId = new Guid("3f2b8c1e-6d4a-4e9b-a7c2-5d1e0f9b8a64"),
+                            PerilCategory = "Property",
+                            SortOrder = 900
+                        });
                 });
 
             modelBuilder.Entity("ClaimsModule.Domain.ReferenceData.Policy", b =>
@@ -710,6 +844,112 @@ namespace ClaimsModule.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("Policies", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("13b458fc-40ac-87e5-a29d-d96e9cfc4258"),
+                            ClientName = "Meridian Transport LLC",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            EffectiveDate = new DateOnly(2024, 1, 1),
+                            ExpirationDate = new DateOnly(2026, 12, 31),
+                            IsCancelled = false,
+                            IsDeleted = false,
+                            OrganisationId = new Guid("3f2b8c1e-6d4a-4e9b-a7c2-5d1e0f9b8a64"),
+                            PolicyNumber = "POL-2024-001001",
+                            _coverageTypes = "[\"Vehicle\",\"Cargo\"]"
+                        },
+                        new
+                        {
+                            Id = new Guid("a13fcfc3-0ea9-8671-bd79-b31715a86394"),
+                            ClientName = "Harborview Properties Inc",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            EffectiveDate = new DateOnly(2024, 6, 1),
+                            ExpirationDate = new DateOnly(2026, 5, 31),
+                            IsCancelled = false,
+                            IsDeleted = false,
+                            OrganisationId = new Guid("3f2b8c1e-6d4a-4e9b-a7c2-5d1e0f9b8a64"),
+                            PolicyNumber = "POL-2024-001002",
+                            _coverageTypes = "[\"Property\",\"Liability\"]"
+                        },
+                        new
+                        {
+                            Id = new Guid("9853294c-0443-85d4-b328-010e41788d89"),
+                            ClientName = "Coastal Builders Group",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            EffectiveDate = new DateOnly(2025, 3, 1),
+                            ExpirationDate = new DateOnly(2027, 2, 28),
+                            IsCancelled = false,
+                            IsDeleted = false,
+                            OrganisationId = new Guid("3f2b8c1e-6d4a-4e9b-a7c2-5d1e0f9b8a64"),
+                            PolicyNumber = "POL-2025-002001",
+                            _coverageTypes = "[\"Property\",\"Equipment\"]"
+                        },
+                        new
+                        {
+                            Id = new Guid("5a2514ef-117c-81cb-a805-f18c2dc1c85a"),
+                            ClientName = "Stanton Medical Group",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            EffectiveDate = new DateOnly(2025, 1, 1),
+                            ExpirationDate = new DateOnly(2026, 12, 31),
+                            IsCancelled = false,
+                            IsDeleted = false,
+                            OrganisationId = new Guid("3f2b8c1e-6d4a-4e9b-a7c2-5d1e0f9b8a64"),
+                            PolicyNumber = "POL-2025-002002",
+                            _coverageTypes = "[\"Liability\",\"Vehicle\"]"
+                        },
+                        new
+                        {
+                            Id = new Guid("72dd9d26-58c9-8523-80b3-08e511c0864b"),
+                            ClientName = "Archived Corp",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            EffectiveDate = new DateOnly(2020, 1, 1),
+                            ExpirationDate = new DateOnly(2021, 12, 31),
+                            IsCancelled = false,
+                            IsDeleted = false,
+                            OrganisationId = new Guid("3f2b8c1e-6d4a-4e9b-a7c2-5d1e0f9b8a64"),
+                            PolicyNumber = "POL-2023-000099",
+                            _coverageTypes = "[\"Property\"]"
+                        },
+                        new
+                        {
+                            Id = new Guid("8624ba21-e892-832a-99a0-579cc34e987c"),
+                            ClientName = "Northwind Logistics Ltd",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            EffectiveDate = new DateOnly(2026, 1, 1),
+                            ExpirationDate = new DateOnly(2027, 12, 31),
+                            IsCancelled = false,
+                            IsDeleted = false,
+                            OrganisationId = new Guid("3f2b8c1e-6d4a-4e9b-a7c2-5d1e0f9b8a64"),
+                            PolicyNumber = "POL-2026-003001",
+                            _coverageTypes = "[\"Vehicle\",\"Cargo\"]"
+                        },
+                        new
+                        {
+                            Id = new Guid("030b49e8-6eff-8ceb-b232-cbc13593c216"),
+                            ClientName = "Bluewater Marina Holdings",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            EffectiveDate = new DateOnly(2026, 3, 1),
+                            ExpirationDate = new DateOnly(2028, 2, 29),
+                            IsCancelled = false,
+                            IsDeleted = false,
+                            OrganisationId = new Guid("3f2b8c1e-6d4a-4e9b-a7c2-5d1e0f9b8a64"),
+                            PolicyNumber = "POL-2026-003002",
+                            _coverageTypes = "[\"Property\",\"Liability\",\"Equipment\"]"
+                        },
+                        new
+                        {
+                            Id = new Guid("ddea2f79-7c44-8857-9600-7113b98fb8ae"),
+                            ClientName = "Summit Engineering Partners",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            EffectiveDate = new DateOnly(2025, 7, 1),
+                            ExpirationDate = new DateOnly(2027, 6, 30),
+                            IsCancelled = false,
+                            IsDeleted = false,
+                            OrganisationId = new Guid("3f2b8c1e-6d4a-4e9b-a7c2-5d1e0f9b8a64"),
+                            PolicyNumber = "POL-2025-002010",
+                            _coverageTypes = "[\"Equipment\",\"Property\"]"
+                        });
                 });
 
             modelBuilder.Entity("ClaimsModule.Domain.Reserves.ClaimReserveComponent", b =>
@@ -1053,6 +1293,116 @@ namespace ClaimsModule.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("ClaimStatusTransitions", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            ClaimStatusTransitionId = new Guid("1cb480b3-fdf6-8919-8f9d-a3370950ebb6"),
+                            Description = "No unresolved or unwaived Critical issues, all Warnings acknowledged, at least one Claimant, handler assigned",
+                            FromStatus = "Draft",
+                            RequiredPermission = "Handler",
+                            RequiresReason = false,
+                            ToStatus = "Open"
+                        },
+                        new
+                        {
+                            ClaimStatusTransitionId = new Guid("ad6d0e3f-d37f-807f-b7b8-c4a4b219ea88"),
+                            Description = "No additional conditions",
+                            FromStatus = "Open",
+                            RequiredPermission = "Handler",
+                            RequiresReason = false,
+                            ToStatus = "UnderInvestigation"
+                        },
+                        new
+                        {
+                            ClaimStatusTransitionId = new Guid("2fb9998a-47cd-8204-802a-83104409cb6e"),
+                            Description = "At least one approved reserve transaction",
+                            FromStatus = "Open",
+                            RequiredPermission = "Handler",
+                            RequiresReason = false,
+                            ToStatus = "PendingPayment"
+                        },
+                        new
+                        {
+                            ClaimStatusTransitionId = new Guid("8d3a7088-e8a1-8cc9-9130-1b5f7ce34e70"),
+                            Description = "All closure conditions satisfied (CC-01..CC-04)",
+                            FromStatus = "Open",
+                            RequiredPermission = "Handler",
+                            RequiresReason = false,
+                            ToStatus = "Closed"
+                        },
+                        new
+                        {
+                            ClaimStatusTransitionId = new Guid("a333b102-bbe7-83e7-b1f3-2ec0ab420b06"),
+                            Description = "Withdrawal reason provided",
+                            FromStatus = "Open",
+                            RequiredPermission = "Handler",
+                            RequiresReason = true,
+                            ToStatus = "Withdrawn"
+                        },
+                        new
+                        {
+                            ClaimStatusTransitionId = new Guid("36c74ad0-00b4-8f6e-b601-d814c2cda8ec"),
+                            Description = "Handler manually reverts",
+                            FromStatus = "UnderInvestigation",
+                            RequiredPermission = "Handler",
+                            RequiresReason = false,
+                            ToStatus = "Open"
+                        },
+                        new
+                        {
+                            ClaimStatusTransitionId = new Guid("48ac7583-674f-844f-97ed-c7492afd1a0a"),
+                            Description = "At least one approved reserve transaction",
+                            FromStatus = "UnderInvestigation",
+                            RequiredPermission = "Handler",
+                            RequiresReason = false,
+                            ToStatus = "PendingPayment"
+                        },
+                        new
+                        {
+                            ClaimStatusTransitionId = new Guid("f0d4a9b9-d8c2-8272-8db5-3ab6dc09cd1b"),
+                            Description = "All closure conditions satisfied (CC-01..CC-04)",
+                            FromStatus = "UnderInvestigation",
+                            RequiredPermission = "Handler",
+                            RequiresReason = false,
+                            ToStatus = "Closed"
+                        },
+                        new
+                        {
+                            ClaimStatusTransitionId = new Guid("5f16c8d2-ac9b-84c1-87c3-e50e02f6a3aa"),
+                            Description = "Withdrawal reason provided",
+                            FromStatus = "UnderInvestigation",
+                            RequiredPermission = "Handler",
+                            RequiresReason = true,
+                            ToStatus = "Withdrawn"
+                        },
+                        new
+                        {
+                            ClaimStatusTransitionId = new Guid("dca4d7c1-d6c5-8489-b11c-e3d055477025"),
+                            Description = "All closure conditions satisfied (CC-01..CC-04)",
+                            FromStatus = "PendingPayment",
+                            RequiredPermission = "Handler",
+                            RequiresReason = false,
+                            ToStatus = "Closed"
+                        },
+                        new
+                        {
+                            ClaimStatusTransitionId = new Guid("44b876d3-c64e-87d7-ac43-06f73771eb5d"),
+                            Description = "Reopen reason provided; Supervisor role required",
+                            FromStatus = "Closed",
+                            RequiredPermission = "Supervisor",
+                            RequiresReason = true,
+                            ToStatus = "Reopened"
+                        },
+                        new
+                        {
+                            ClaimStatusTransitionId = new Guid("5e2b8ca4-d26a-8233-bfc2-7ff6973cc4aa"),
+                            Description = "Immediately on reopen",
+                            FromStatus = "Reopened",
+                            RequiredPermission = "Supervisor",
+                            RequiresReason = false,
+                            ToStatus = "Open"
+                        });
                 });
 
             modelBuilder.Entity("ClaimsModule.Persistence.Entities.IdempotencyRecord", b =>

@@ -1,5 +1,6 @@
 using ClaimsModule.Domain.ReferenceData;
 using ClaimsModule.Persistence.Conventions;
+using ClaimsModule.Persistence.Seed;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -30,6 +31,21 @@ internal sealed class PolicyConfiguration : BusinessEntityConfiguration<Policy>
 
         builder.HasIndex(ShadowProperties.OrganisationId, nameof(Policy.PolicyNumber)).IsUnique();
         builder.HasIndex(p => p.ClientName);
+
+        // S15.4: seed through HasData, applied by the migrations.
+        builder.HasData(SeedData.Policies.Select(p => new
+        {
+            p.Id,
+            p.PolicyNumber,
+            p.ClientName,
+            p.EffectiveDate,
+            p.ExpirationDate,
+            IsCancelled = false,
+            _coverageTypes = p.CoverageTypes.ToList(),
+            OrganisationId = SeedData.DefaultOrganisationId,
+            CreatedAt = SeedData.SeededAt,
+            IsDeleted = false,
+        }));
     }
 }
 
@@ -50,5 +66,18 @@ internal sealed class CauseOfLossCodeConfiguration : BusinessEntityConfiguration
 
         // Alternate key so LossEvents can reference (OrganisationId, Code) as S9.2 says ("FK to CauseOfLossCodes.Code").
         builder.HasAlternateKey(ShadowProperties.OrganisationId, nameof(CauseOfLossCode.Code));
+
+        builder.HasData(SeedData.CausesOfLoss.Select(c => new
+        {
+            c.Id,
+            c.Code,
+            c.Name,
+            c.PerilCategory,
+            c.IsActive,
+            c.SortOrder,
+            OrganisationId = SeedData.DefaultOrganisationId,
+            CreatedAt = SeedData.SeededAt,
+            IsDeleted = false,
+        }));
     }
 }

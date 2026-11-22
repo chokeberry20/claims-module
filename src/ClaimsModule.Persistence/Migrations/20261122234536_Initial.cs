@@ -11,11 +11,6 @@ namespace ClaimsModule.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // D-42: run with SQL Server 2022 behaviour (compatibility level 160), both on the local
-            // SQL Server 2025 Express instance and on Azure SQL. ALTER DATABASE can't run inside a
-            // transaction, hence suppressTransaction. The statement is idempotent.
-            migrationBuilder.Sql("ALTER DATABASE CURRENT SET COMPATIBILITY_LEVEL = 160;", suppressTransaction: true);
-
             migrationBuilder.CreateTable(
                 name: "CauseOfLossCodes",
                 columns: table => new
