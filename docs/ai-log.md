@@ -1,0 +1,99 @@
+# AI Interaction Log
+
+Running log of the AI-assisted workflow (Claude Code, model Claude Opus 5.5). It is the raw material for `AI-WORKFLOW.md` (brief §4.5/§4.6). Entries are in chronological order. Decisions by the engineer are marked as such so they aren't mistaken for AI output.
+
+---
+
+## Session 1: 2026-11-22: requirements analysis & planning
+
+### Context loaded
+- `files/DICEUS_Fullstack_Technical_Assessment.docx` (brief) and `files/Claims_Module_Candidate_Specification.docx` (FRS v1.0). The text was pulled from `word/document.xml` and both documents were read in full.
+- Prompt (summary): *"Analyze both thoroughly. Do not write code. Identify FRs with spec IDs, NFRs, entities and aggregates, architecture within the mandated stack, modules, technical challenges, and ambiguities/contradictions with resolutions. Produce a detailed plan with small verifiable tasks, save it to docs/PLAN.md and DECISIONS.md, and log assumptions here."*
+- Mode: plan mode (read-only) until the plan was approved.
+
+### Assumptions made by the AI (rev 1), detailed in DECISIONS.md
+- D-00 precedence: spec wins on business rules, brief wins on stack and delivery.
+- D-01…D-41 cover every contradiction and gap. The main ones: OrganisationId naming, the spec's 4 reserve components, two-layer validation (request 422 vs persisted issues), the gapless per-year claim-number table, SLA as a flag not a status, adjust = target balance, one pending transaction per component, gross aggregate limit, and the added endpoints (validate, loss-details, policy link, assignment, notes, transitions pre-flight, retry-posting, reserve-limit-override, auth/token, coverage).
+- Other assumptions:
+  - Single currency (USD).
+  - One seeded organisation, with its ID in config.
+  - Multiple claimants are allowed.
+  - The audit OldValue for a rejection carries the reason.
+  - Each transition writes STATUS_CHANGED plus the specific CLAIM_CLOSED or CLAIM_REOPENED event.
+  - Extra audit events: CLAIM_UPDATED, POLICY_LINKED, HANDLER_ASSIGNED, WARNINGS_ACKNOWLEDGED, VALIDATION_ISSUE_WAIVED, RESERVE_LIMIT_OVERRIDE_SET, GL_POSTING_RETRY_REQUESTED.
+
+### Issues the AI found in the source documents
+1. **Internal spec contradiction.** S5.3 says "no gaps" but also accepts a SQL `SEQUENCE`, which can leave gaps. Resolved with a sequence table updated inside the FNOL transaction (D-14).
+2. **Brief vs spec.** The brief says the SLA job flags a "SlaBreached **status**", while the spec says "do not change status". Resolved with a flag column (D-13).
+3. **Stale seed data.** POL-2024-001002 expired 2026-05-31, before today's date. Policy status is computed from dates and in-force demo policies are added (D-34).
+4. **Licensing.** AutoMapper ≥15 and MediatR ≥13 are commercial. Pinned to AutoMapper 14.x and MediatR 12.x (D-38).
+5. **Platform risk.** .NET 9 (STS) support ended around 2026-11-10. It stays because it is mandated, and the risk plus the .NET 10 upgrade path are recorded.
+
+### Corrections you made in your plan review (rev 1 → rev 2)
+These are concrete cases where the AI output was suboptimal or wrong and you corrected it. They are candidates for the "≥2 AI correction examples" in AI-WORKFLOW.md.
+
+| # | What the AI proposed | Problem | Correction |
+|---|---|---|---|
+| C-1 | All Azure and CI/CD work in P7, near the end | Integration risk is found too late. A broken deploy at the deadline puts 25% of the score at risk | A walking skeleton (API + Swagger + empty Angular via `deploy.yml`) right after P2 (new P2.5), then an incremental deploy & smoke after every phase |
+| C-2 | Time-short priority ranked the frontend last | The brief §7.2 live demo needs FNOL → reserve → approval → upload → audit **in the UI** | Split P6 into P6a (minimal demo-flow UI, before P8 docs) and P6b (polish, after docs) |
+| C-3 | D-07 banned waiving Criticals | Contradicts S4.2 "(or all waived)" | Supervisor+ waiver with a mandatory reason and a VALIDATION_ISSUE_WAIVED audit entry |
+| C-4 | "Hangfire dashboard (manager-only)" with no mechanism | Not workable: a browser can't send a JWT Bearer header when it navigates to `/hangfire` | A concrete mechanism is required (resolved in rev 3, see D-41) |
+| C-5 | Magic-byte sniffing, HMAC-signed local URLs, User Delegation SAS and NetArchTest as baseline | Over-engineering beyond the spec. S13 asks only for "a local URL" | All four moved to **Stretch**. Start with an account-key SAS. Idempotency-Key (S10) and the audit-log trigger (BR-A-01/S14.2) **stay** because the spec requires them |
+| C-6 | No escalation of open business questions | — | Rev 2 added "Questions for the recruiter". This was superseded in rev 3 |
+
+### Your decisions (rev 2 → rev 3): made by you as the engineer, not by the AI
+- **No recruiter questions.** You decide the ambiguities yourself, so §10 became "Decided without clarification".
+- **D-07:** waiving Critical issues is supported (supervisor+, mandatory reason, `VALIDATION_ISSUE_WAIVED`), per S4.2. **`NO_CLAIMANT` can't be waived** because BR-C-03 and BR-ST-02(b) require a Claimant independently. Warnings still need acknowledgement before Open (BR-C-02).
+  - *AI shortfall corrected:* rev 2 made NO_CLAIMANT technically waivable, relying on a separate structural check. That created a confusing "waived but still blocking" state.
+- **D-16:** the AI's proposal is kept. Add = initial balance (>0). Adjust = new target balance (>0, any sign for Subrogation). Reverse = to zero. The server computes the signed delta, stored in `ReserveHistory.Amount`. Authority uses |delta|, so decreases above $10k also need approval.
+- **D-19:** gross is kept. The limit is Indemnity + Expense + ALAE, with Subrogation excluded, and the deviation from the literal "across all components" is documented.
+  - Check at submission: a breach raises a Warning and forces PendingApproval.
+  - **Re-check at approval** against the approved total plus this transaction.
+  - *AI shortfall corrected:* rev 1 and 2 didn't spell out the approval-time re-check, which is needed when other approvals land while this one is pending.
+- **D-41:** the Hangfire dashboard uses **HTTP Basic auth**, with credentials from config or Key Vault.
+  - *Replaces the AI's rev-2 design* of a single-use ticket exchanged for a cookie. You judged that over-engineered for this scope.
+  - The AI noted an implementation detail: the filter must send `WWW-Authenticate` so the browser prompts. It also fails closed when the password isn't configured.
+- Final wording fix in the plan's verification note ("§10 decided without clarification").
+
+### Representative prompts (for AI-WORKFLOW.md)
+1. *Analysis prompt* (above). Purpose: build structured requirements traceability before any design.
+2. *Review prompt (rev 2):* "Move a walking-skeleton deployment right after P2… The live demo requires the FNOL → reserve → approval → upload → audit flow in the UI… D-07 contradicts S4.2… The Hangfire dashboard can't use JWT Bearer… Mark as Stretch…". Purpose: critical review of the AI plan for priorities, spec fidelity and feasibility.
+3. *Decision prompt (rev 3):* "No recruiter questions — I'm deciding these myself…". Purpose: the engineer takes ownership of the ambiguous business rules.
+
+### Outcome
+- `docs/PLAN.md`, `docs/DECISIONS.md` and `docs/ai-log.md` written from the approved plan (rev 3).
+- **Next:** you review these files. P0 (bootstrap) starts only after your explicit go-ahead.
+
+---
+
+## Session 1 (continued): 2026-11-22: doc review before P0 (rev 4)
+
+### A second Claude session cross-reviewed the plan
+You ran the plan through **a second, independent Claude session** as a reviewer, to get a second opinion on the AI's own work.
+- **It got one thing wrong, and you caught it.** The reviewer session suggested moving **Idempotency-Key handling** and the **ClaimAuditLog append-only trigger** to Stretch.
+  - You checked the spec. S10 says "All write operations are idempotent where an Idempotency-Key header is provided". S14.2 says "ClaimAuditLog must have no UPDATE or DELETE permissions" (with BR-A-01).
+  - You **kept both in the baseline** (see C-5 above).
+  - *Lesson for AI-WORKFLOW.md:* an AI reviewer can over-correct toward scope reduction. Every suggestion still has to be checked against the source document.
+
+### Corrections from your doc review (rev 3 → rev 4)
+| # | Finding | Type | Fix |
+|---|---|---|---|
+| C-7 | FR-71 said "17 event types". S14.1 lists **16**: CLAIM_CREATED, STATUS_CHANGED, PARTY_ADDED, PARTY_REMOVED, RESERVE_CREATED, RESERVE_AUTO_APPROVED, RESERVE_APPROVED, RESERVE_REJECTED, RESERVE_RETRACTED, GL_POSTING_SIMULATED, GL_POSTING_FAILED, DOCUMENT_UPLOADED, CLAIM_CLOSED, CLAIM_REOPENED, SLA_BREACH_DETECTED, VALIDATION_ISSUE_ADDED | **AI factual error** (miscount), caught in review and verified against S14.1 | FR-71 now says 16 |
+| C-8 | The brief is marked **CONFIDENTIAL — FOR CANDIDATE USE ONLY**, but nothing kept `files/*.docx` out of git | AI omission (confidentiality) | `files/` added to `.gitignore` in P0 task 1 |
+| C-9 | "Deliberate deviations" left out D-05 (request-level Criticals → 422 instead of a Draft claim, vs S5.4) and D-24 (403 instead of 422 for an insufficient role, vs S8) | AI omission (incomplete deviation list) | Both added to DECISIONS.md |
+| C-10 | FR-21 said "no unresolved Criticals" and ignored the D-07 waiver | AI inconsistency between documents | Now "no unresolved or unwaived Criticals (D-07), all Warnings acknowledged…" |
+| C-11 | Azure SQL "serverless, auto-pause off, or Basic" was undecided, and serverless with auto-pause off costs more | Cost decision (yours) | **Basic tier** (5 DTU), with Hangfire `QueuePollInterval` at 30s |
+| C-12 | Formatting: some FR tables had no header rows. D-41 sat in the middle of the register. "Decided without clarification" appeared in both PLAN and DECISIONS | AI formatting defects | Header rows added (§1.3, §1.5–1.9), D-41 moved to the end, duplicate section removed from DECISIONS.md (it stays in PLAN.md §10) |
+
+### Environment decision (yours), recorded as D-42
+- At the start of P0 the AI found that **Docker isn't installed**, so the planned docker-compose and Testcontainers checks couldn't run. It also found that **git had no identity** configured, which you then set yourself.
+- **Your decision:** drop Docker from the local setup.
+  - DB = local **SQL Server 2025 Express** `.\SQLEXPRESS01` (Windows auth) at **compatibility level 160** (SQL Server 2022).
+  - **LocalFileSystem** storage.
+  - Integration tests use a separate test DB locally and a **SQL Server 2022 service container in GitHub Actions**. No Testcontainers.
+  - The task-4 docker-compose check is skipped. docker-compose is optional and only checked in CI.
+- The AI confirmed `.\SQLEXPRESS01` responds (`SELECT @@VERSION` → SQL Server 2025 RTM-GDR 17.0.1155.3).
+- It noted one implementation detail: `ALTER DATABASE … SET COMPATIBILITY_LEVEL` can't run inside a transaction, so the migration must use `suppressTransaction: true`.
+- PLAN.md was updated: NFRs, the solution tree, P0 task 4, P2 task 13, P4 task 29, P5 task 34 and P7 task 41. D-30 was updated to match.
+
+## Session 2: 2026-11-23: P0 bootstrap

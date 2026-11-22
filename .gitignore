@@ -1,0 +1,56 @@
+# ---------------------------------------------------------------
+# Confidential assessment material: NEVER commit.
+# The brief is marked "CONFIDENTIAL — FOR CANDIDATE USE ONLY".
+# ---------------------------------------------------------------
+files/
+*.docx
+
+# ---------------------------------------------------------------
+# .NET
+# ---------------------------------------------------------------
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+*.user
+*.suo
+*.userprefs
+*.rsuser
+.vs/
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.DotSettings.user
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+artifacts/
+publish/
+efbundle
+efbundle.exe
+
+# Local secrets & machine-specific config
+appsettings.*.local.json
+*.local.json
+.env
+.env.*
+secrets.json
+
+# Local document storage (LocalFileSystem provider)
+uploads/
+
+# ---------------------------------------------------------------
+# Angular / Node
+# ---------------------------------------------------------------
+node_modules/
+dist/
+.angular/
+npm-debug.log*
+yarn-error.log*
+
+# ---------------------------------------------------------------
+# OS
+# ---------------------------------------------------------------
+Thumbs.db
+.DS_Store
