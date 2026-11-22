@@ -1,7 +1,7 @@
 # Claims Module (FNOL + Reserve Management): Plan
 
 _Status: approved plan, revision 4 (2026-11-22). Implementation has not started._
-_Related: [DECISIONS.md](DECISIONS.md) (D-01…D-42), [ai-log.md](ai-log.md)._
+_Related: [DECISIONS.md](DECISIONS.md) (D-01…D-50), [ai-log.md](ai-log.md)._
 _Section numbering follows the approved plan: §7 (ambiguities and contradictions) is in DECISIONS.md, and §9 (AI log) is in ai-log.md._
 
 `files/` has two documents:

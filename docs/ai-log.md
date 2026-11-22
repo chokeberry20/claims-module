@@ -130,3 +130,44 @@ Branch `p0-bootstrap` (from `main` at the planning-docs commit `3589305`).
 - **Rules from now on** (yours):
   - Re-run `dotnet build` **and** `dotnet test` after every task, immediately before committing, and report the actual output of that run.
   - (AI addition) Write files that contain backslashes with Write/Edit, never with shell heredocs.
+
+### P0 follow-up: git identity rewrite (2026-11-23)
+- You changed your git email to your GitHub no-reply address and asked for the history to be rewritten. Nothing had been pushed.
+- The AI rewrote author and committer on all 6 commits of `main` and `p0-bootstrap` with `git filter-branch --env-filter`. The new identity came from `git config`, so the address was never typed.
+- It checked trees, author dates and subjects against backup branches, then removed the backups and `refs/original`, expired the reflog and pruned.
+- Result: 0 commits, messages or files still contain the old address. Every commit hash changed, so P0 hashes quoted earlier in this log are stale.
+
+## Session 2 (continued): 2026-11-23: P1 Domain (TDD)
+
+Branch `p1-domain` (from `p0-bootstrap`). Each task was committed through a script that rebuilds and re-tests the whole solution and commits **only if both are green**, printing the real summary lines. This makes the C-13 rule mechanical.
+
+| Task | Commit | build | tests (Domain + Integration) |
+|---|---|---|---|
+| 5: building blocks and enums | `e5920f5` | 0 warnings / 0 errors | 23 + 12 passed |
+| 6: Claim aggregate | `bcd986f` | 0 / 0 | 86 + 12 passed |
+| 7: state machine | `d696b17` | 0 / 0 | 213 + 12 passed |
+| 8: ClaimStateValidator | `b929aad` | 0 / 0 | 225 + 12 passed |
+| 10: authority policy | `cb72dfd` | 0 / 0 | 253 + 12 passed |
+| 9: reserve aggregate | `df76f85` | 0 / 0 | 295 + 12 passed |
+
+- **Plan deviation:** task 10 (authority policy) was done **before** task 9 (reserve aggregate), because the aggregate's `Submit` and `Approve` depend on the policy. The commits keep the plan's task numbers.
+- **Mutation checks.** Each task had one or more rules deliberately broken, to prove the tests catch it. Every file was restored and confirmed identical with `cmp` or `git diff`.
+
+  | Mutation | Tests that failed |
+  |---|---|
+  | Last-claimant guard `== 1` → `== 2` | 2 |
+  | Reopen required role → Handler | 3 |
+  | Inclusive policy start date → exclusive | 2 |
+  | Auto-approval `<=` → `<` | 3 |
+  | Self-approval check disabled | 1 |
+  | Approval-time limit re-check ignores the current total | 2 |
+
+- **AI self-corrections during P1:**
+  1. While creating folders, the AI accidentally deleted `Domain/AssemblyReference.cs`, which the layer tests use. It noticed from `git status` and restored it with `git restore` before writing any code.
+  2. A first mutation (`Count() == 1` → `Count() == 0`) was rejected by the analyzer at compile time (CA1827, warnings are errors). It never exercised the tests, and its empty output could have been misread as "tests still pass". The AI saw there was no test summary, checked the log, and switched to a mutation that compiles.
+  3. The AI removed a filter in `GetAvailableTransitions` that could never have an effect, and a pointless alias constant, before committing.
+- **New decisions D-43…D-50** are in DECISIONS.md. **D-43** (the `ReserveTransaction` entity maps to the `ReserveHistory` table) departs from S15.3 "entities match table name" and is flagged for your veto.
+- **Deliberately not in P1:**
+  - Policy and CauseOfLossCode reference entities. They come with their EF configuration and seed in P2.
+  - The audit event type enum. Mapping events to audit types is an Application concern (P3).
+  - Unique (ClaimId, Component) enforcement. That is a P2 index plus a P3 handler rule.
