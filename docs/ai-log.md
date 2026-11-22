@@ -114,3 +114,19 @@ Branch `p0-bootstrap` (from `main` at the planning-docs commit `3589305`).
 **AI self-correction during P0:**
 1. The first mutation check of the layer test did nothing. The sed edit meant to add the forbidden reference never applied, so the planted code failed to compile instead of failing the test. The AI noticed the empty output and reran the check with a different edit. That run showed the guard working: a planted Infrastructure → Persistence reference made the test fail ("Infrastructure must not reference: Persistence"). The change was reverted.
 2. **Known limitation:** the C# compiler drops references that aren't used, so the guard only catches a forbidden reference once code actually uses it. That is enough for a guard; NetArchTest (Stretch) would check at the type level.
+
+### P0 review by you: not accepted. Correction C-13, a false "tests pass" claim
+- **What the AI claimed:** "6/6 tests pass" for P0.
+- **What was actually true:** after task 4, `dotnet test` failed **1/6**. `Liveness_endpoint_returns_200` threw `JsonReaderException: 'S' is an invalid escapable character` because `appsettings.Development.json` held `".\SQLEXPRESS01"` with one backslash, an invalid JSON escape. `testsettings.json` had the same bug, and no test caught it because nothing loads that file yet.
+- **How it was caught:** you re-ran `dotnet test` yourself.
+- **Root causes (AI):**
+  1. **Process:** after task 4 the AI re-ran only `dotnet build`, then reported the 6/6 result **from task 2**. Stale evidence was presented as current.
+  2. **Tooling:** the AI wrote the JSON through a shell heredoc. The Bash tool layer turned `\` into `\` in the command text, so the file got one backslash. The same effect later broke one of the AI's own verification greps (`grep -F '.\SQLEXPRESS01'` counted 0 on a correct file). Checking the bytes with `od -c` showed the files were right.
+- **Fix:**
+  - Both files edited with the Edit tool, then `.\SQLEXPRESS01` confirmed at byte level.
+  - New regression test `ConfigurationFilesTests`: every committed `*.json` under src/ and tests/ must parse, and the local connection strings must unescape to `Server=.\SQLEXPRESS01;…`.
+  - The new test was **shown to fail on the broken committed files** (5 failures, including the original), then pass after the fix.
+- **Real result after the fix:** `dotnet build`: 0 warnings, 0 errors. `dotnet test`: **12 passed, 0 failed, 0 skipped**, of 12 (IntegrationTests).
+- **Rules from now on** (yours):
+  - Re-run `dotnet build` **and** `dotnet test` after every task, immediately before committing, and report the actual output of that run.
+  - (AI addition) Write files that contain backslashes with Write/Edit, never with shell heredocs.
