@@ -171,3 +171,10 @@ Branch `p1-domain` (from `p0-bootstrap`). Each task was committed through a scri
   - Policy and CauseOfLossCode reference entities. They come with their EF configuration and seed in P2.
   - The audit event type enum. Mapping events to audit types is an Application concern (P3).
   - Unique (ClaimId, Component) enforcement. That is a P2 index plus a P3 handler rule.
+
+### Your P1 review (accepted)
+- You re-ran build and tests yourself: 295 + 12 green.
+- **D-43 kept** (`ReserveTransaction` ↔ `ReserveHistory`). Your rationale: the spec calls these rows transactions (S6.6, `{txnId}`), and entity and table names already differ by plurality (`ClaimParty` / `ClaimParties`).
+- **D-44 accepted** and added to "Deliberate deviations", because S10.2 sets no amount limit for reject.
+- **P3 task 25a added** (your requirement): reserve command handlers must enforce BR-C-06 and D-20 through `claim.EnsureReserveChangesAllowed()`, with tests per command.
+- `main` was fast-forwarded to `p1-domain`.
