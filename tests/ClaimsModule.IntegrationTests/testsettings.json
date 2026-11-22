@@ -1,0 +1,8 @@
+{
+  "ConnectionStrings": {
+    "ClaimsDb": "Server=.\SQLEXPRESS01;Database=ClaimsModule_Tests;Trusted_Connection=True;TrustServerCertificate=True"
+  },
+  "Storage": {
+    "Provider": "LocalFileSystem"
+  }
+}

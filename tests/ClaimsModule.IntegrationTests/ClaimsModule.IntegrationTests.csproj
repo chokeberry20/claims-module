@@ -19,4 +19,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\ClaimsModule.API\ClaimsModule.API.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Local test DB (D-42). CI overrides ConnectionStrings__ClaimsDb with the SQL Server 2022 service container. -->
+    <None Include="testsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
