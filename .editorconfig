@@ -51,3 +51,8 @@ dotnet_naming_style.end_in_async.capitalization = pascal_case
 # Tests: allow underscores in method names (Given_When_Then)
 [tests/**.cs]
 dotnet_diagnostic.CA1707.severity = none
+
+# EF Core migrations are generated code: exclude them from style/analyzer enforcement.
+[src/ClaimsModule.Persistence/Migrations/**.cs]
+generated_code = true
+dotnet_analyzer_diagnostic.severity = none

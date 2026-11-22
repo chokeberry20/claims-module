@@ -1,8 +1,12 @@
 using System.Linq.Expressions;
 using ClaimsModule.Application.Abstractions;
+using ClaimsModule.Domain.Claims;
 using ClaimsModule.Domain.Common;
+using ClaimsModule.Domain.Documents;
 using ClaimsModule.Domain.ReferenceData;
+using ClaimsModule.Domain.Reserves;
 using ClaimsModule.Persistence.Conventions;
+using ClaimsModule.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClaimsModule.Persistence;
@@ -25,9 +29,25 @@ public sealed class ClaimsDbContext : DbContext
     /// <summary>Referenced by the global query filters, so it is evaluated per query.</summary>
     public Guid CurrentOrganisationId => _tenantProvider.OrganisationId;
 
+    public DbSet<Claim> Claims => Set<Claim>();
+
+    public DbSet<ClaimReserveComponent> ReserveComponents => Set<ClaimReserveComponent>();
+
+    public DbSet<ReserveTransaction> ReserveTransactions => Set<ReserveTransaction>();
+
+    public DbSet<ClaimDocument> ClaimDocuments => Set<ClaimDocument>();
+
+    public DbSet<ClaimAuditLog> AuditLog => Set<ClaimAuditLog>();
+
     public DbSet<Policy> Policies => Set<Policy>();
 
     public DbSet<CauseOfLossCode> CauseOfLossCodes => Set<CauseOfLossCode>();
+
+    public DbSet<ClaimStatusTransition> ClaimStatusTransitions => Set<ClaimStatusTransition>();
+
+    public DbSet<ClaimNumberSequence> ClaimNumberSequences => Set<ClaimNumberSequence>();
+
+    public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -42,6 +62,9 @@ public sealed class ClaimsDbContext : DbContext
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ClaimsDbContext).Assembly);
         ApplyBusinessQueryFilters(modelBuilder);
+
+        // The audit log is tenant-scoped but has no soft delete (D-23).
+        modelBuilder.Entity<ClaimAuditLog>().HasQueryFilter(a => a.OrganisationId == CurrentOrganisationId);
     }
 
     /// <summary>

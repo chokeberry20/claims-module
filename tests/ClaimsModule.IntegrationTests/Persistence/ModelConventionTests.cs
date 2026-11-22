@@ -105,11 +105,15 @@ public sealed class ModelConventionTests
             .ShouldAllBe(p => p.GetColumnType() == "datetimeoffset(7)");
 
     [Fact]
-    public void Enums_are_stored_as_nvarchar_50_codes() =>
-        Model.GetEntityTypes()
+    public void Enums_are_stored_as_nvarchar_50_codes_except_party_type_which_S9_3_sizes_at_20()
+    {
+        var enumColumns = Model.GetEntityTypes()
             .SelectMany(t => t.GetProperties())
             .Where(p => (Nullable.GetUnderlyingType(p.ClrType) ?? p.ClrType).IsEnum)
-            .ShouldAllBe(p => p.GetColumnType() == "nvarchar(50)");
+            .ToDictionary(p => $"{p.DeclaringType.ClrType.Name}.{p.Name}", p => p.GetColumnType());
+
+        enumColumns.Where(c => c.Value != "nvarchar(50)").ShouldBe([new("ClaimParty.Type", "nvarchar(20)")]);
+    }
 
     [Fact]
     public void Bool_flags_are_bit_not_null_default_false() =>
