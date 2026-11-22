@@ -344,6 +344,14 @@ public sealed partial class Claim : AggregateRoot
         }
     }
 
+    /// <summary>Runs <see cref="ClaimStateValidator"/> and syncs the persisted issues (S5.4 validate endpoint).</summary>
+    public IReadOnlyList<ValidationFinding> Revalidate(ClaimValidationContext context, DateTimeOffset now)
+    {
+        var findings = ClaimStateValidator.Evaluate(this, context);
+        ApplyValidationFindings(findings, now);
+        return findings;
+    }
+
     /// <summary>BR-C-02: acknowledges every open Warning. Returns how many were acknowledged.</summary>
     public int AcknowledgeWarnings(Actor actor, DateTimeOffset now)
     {
