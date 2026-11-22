@@ -79,6 +79,9 @@ public sealed partial class Claim : AggregateRoot
 
     public DateTimeOffset? LastSlaBreachAt { get; private set; }
 
+    /// <summary>The last reserve command on this claim. Its update bumps the claim's RowVer.</summary>
+    public DateTimeOffset? LastReserveActivityAt { get; private set; }
+
     public LossEvent LossEvent { get; private set; } = null!;
 
     public IReadOnlyCollection<ClaimParty> Parties => _parties.AsReadOnly();
@@ -438,11 +441,17 @@ public sealed partial class Claim : AggregateRoot
     }
 
     /// <summary>
-    /// Marks reserve activity on the claim. The application calls this for every reserve command, so
-    /// the claim's row version changes and concurrent claim and reserve operations conflict
-    /// (cross-aggregate concurrency, PLAN §3).
+    /// Marks reserve activity on the claim. The application calls this for every reserve command.
+    /// It changes a persisted column (<see cref="LastReserveActivityAt"/>), so EF really updates the
+    /// Claims row and its RowVer changes. Concurrent claim and reserve operations then conflict
+    /// instead of racing (cross-aggregate concurrency, PLAN §3). A call that changed nothing would
+    /// leave the entity unmodified, and no update would be issued.
     /// </summary>
-    public void RecordReserveActivity() => Touch();
+    public void RecordReserveActivity(DateTimeOffset now)
+    {
+        LastReserveActivityAt = now.ToUniversalTime();
+        Touch();
+    }
 
     /// <summary>BR-R-05 / D-19: only a Manager may set or clear the override flag.</summary>
     public void SetReserveLimitOverride(bool enabled, Actor actor, DateTimeOffset now)

@@ -16,10 +16,10 @@ public sealed class LayerDependencyTests
 
     public static TheoryData<Assembly, string[]> ForbiddenReferences => new()
     {
-        { typeof(Domain.AssemblyReference).Assembly, [Application, Persistence, Infrastructure, Api] },
-        { typeof(Application.AssemblyReference).Assembly, [Persistence, Infrastructure, Api] },
-        { typeof(Persistence.AssemblyReference).Assembly, [Infrastructure, Api] },
-        { typeof(Infrastructure.AssemblyReference).Assembly, [Persistence, Api] },
+        { typeof(global::ClaimsModule.Domain.AssemblyReference).Assembly, [Application, Persistence, Infrastructure, Api] },
+        { typeof(global::ClaimsModule.Application.AssemblyReference).Assembly, [Persistence, Infrastructure, Api] },
+        { typeof(global::ClaimsModule.Persistence.AssemblyReference).Assembly, [Infrastructure, Api] },
+        { typeof(global::ClaimsModule.Infrastructure.AssemblyReference).Assembly, [Persistence, Api] },
     };
 
     [Theory]
@@ -35,7 +35,7 @@ public sealed class LayerDependencyTests
     [Fact]
     public void Domain_has_no_project_or_package_dependencies()
     {
-        var referenced = typeof(Domain.AssemblyReference).Assembly
+        var referenced = typeof(global::ClaimsModule.Domain.AssemblyReference).Assembly
             .GetReferencedAssemblies()
             .Select(a => a.Name!)
             .Where(n => !n.StartsWith("System", StringComparison.Ordinal)
