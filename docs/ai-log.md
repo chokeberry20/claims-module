@@ -97,3 +97,20 @@ You ran the plan through **a second, independent Claude session** as a reviewer,
 - PLAN.md was updated: NFRs, the solution tree, P0 task 4, P2 task 13, P4 task 29, P5 task 34 and P7 task 41. D-30 was updated to match.
 
 ## Session 2: 2026-11-23: P0 bootstrap
+Branch `p0-bootstrap` (from `main` at the planning-docs commit `3589305`).
+
+| Task | Commit | Result |
+|---|---|---|
+| 1: repo conventions | `c7303e4` | `global.json` pins SDK **9.0.321**, because SDK 10.0.401 is also installed and would otherwise be picked. Directory.Build.props: net9.0, C# 13, nullable, warnings as errors, code style enforced in build. Central package management with pinned versions. `files/` is git-ignored (checked with `git check-ignore`) |
+| 2: solution skeleton | `dd90314` | 5 src and 3 test projects, references follow the dependency rule. Build: 0 warnings, 0 errors. Tests: 6/6 pass |
+| 3: NetArchTest | — | **Skipped (Stretch, rev 2).** Replaced by a small reflection-based `LayerDependencyTests` with no new package |
+| 4: local environment | `5eb0299` | Dev and test connection strings for `.\SQLEXPRESS01`, LocalFileSystem storage. sqlcmd connects (17.0.1155.3 Express). The DBs don't exist yet; P2 migrations create them |
+
+**Package version check (AI).** Versions came from live NuGet queries, not from memory.
+- The newest versions are MediatR 15, AutoMapper 17, EF Core 11 and Swashbuckle 11. They were rejected because of licences (MediatR, AutoMapper) or because they target .NET 10+.
+- Pinned instead: MediatR **12.5.0**, AutoMapper **14.0.0**, EF Core / ASP.NET **9.0.23**, Swashbuckle **9.0.6**, Serilog.AspNetCore **9.0.0**, Hangfire **1.8.25**, FluentValidation **12.2.0**, xunit **2.9.3**, Test SDK **17.14.2**.
+- **Shouldly** is used instead of FluentAssertions, because FluentAssertions v8 has a commercial licence.
+
+**AI self-correction during P0:**
+1. The first mutation check of the layer test did nothing. The sed edit meant to add the forbidden reference never applied, so the planted code failed to compile instead of failing the test. The AI noticed the empty output and reran the check with a different edit. That run showed the guard working: a planted Infrastructure → Persistence reference made the test fail ("Infrastructure must not reference: Persistence"). The change was reverted.
+2. **Known limitation:** the C# compiler drops references that aren't used, so the guard only catches a forbidden reference once code actually uses it. That is enough for a guard; NetArchTest (Stretch) would check at the type level.
