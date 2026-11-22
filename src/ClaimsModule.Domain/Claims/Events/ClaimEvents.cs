@@ -97,10 +97,12 @@ public sealed record ClaimStatusChanged(
     Guid ActorUserId,
     DateTimeOffset OccurredAt) : DomainEvent(OccurredAt);
 
+/// <summary>CC-04: when open reserve balances remain, <paramref name="OpenReservesJustification"/> holds the handler's note.</summary>
 public sealed record ClaimClosed(
     Guid ClaimId,
     string? ClosureReason,
     bool ClosedWithOpenReserves,
+    string? OpenReservesJustification,
     Guid ActorUserId,
     DateTimeOffset OccurredAt) : DomainEvent(OccurredAt);
 
