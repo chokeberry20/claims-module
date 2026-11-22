@@ -12,7 +12,9 @@ internal sealed class ClaimAuditLogConfiguration : IEntityTypeConfiguration<Clai
 {
     public void Configure(EntityTypeBuilder<ClaimAuditLog> builder)
     {
-        builder.ToTable("ClaimAuditLog");
+        // BR-A-01 / S14.2: the AuditLogAppendOnlyTrigger migration creates an INSTEAD OF UPDATE, DELETE
+        // trigger. Declaring it tells EF not to use OUTPUT-clause batching, which conflicts with triggers.
+        builder.ToTable("ClaimAuditLog", t => t.HasTrigger("TR_ClaimAuditLog_AppendOnly"));
         builder.HasKey(a => a.AuditLogId);
         builder.Property(a => a.AuditLogId).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
 

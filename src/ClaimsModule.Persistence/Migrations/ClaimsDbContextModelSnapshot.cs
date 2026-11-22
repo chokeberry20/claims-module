@@ -1237,7 +1237,12 @@ namespace ClaimsModule.Persistence.Migrations
 
                     b.HasIndex("ClaimId", "EventType", "CreatedAt");
 
-                    b.ToTable("ClaimAuditLog", (string)null);
+                    b.ToTable("ClaimAuditLog", null, t =>
+                        {
+                            t.HasTrigger("TR_ClaimAuditLog_AppendOnly");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
             modelBuilder.Entity("ClaimsModule.Persistence.Entities.ClaimNumberSequence", b =>
