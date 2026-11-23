@@ -276,6 +276,14 @@ resource api 'Microsoft.Web/sites@2024-04-01' = {
   }
 }
 
+// The system-assigned identity's application (client) ID. ARM exposes it on this extension
+// resource; reading it needs no Microsoft Graph permission. db/scripts/app-user-azure.sql creates
+// the database user from it (WITH SID), so Azure SQL needs no directory lookup (D-60).
+resource apiIdentity 'Microsoft.ManagedIdentity/identities@2023-01-31' existing = {
+  scope: api
+  name: 'default'
+}
+
 // Read-only access to the vault's secrets for the API's managed identity (least privilege).
 resource apiKeyVaultSecretsUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   scope: keyVault
@@ -293,6 +301,7 @@ resource apiKeyVaultSecretsUser 'Microsoft.Authorization/roleAssignments@2022-04
 output apiAppName string = api.name
 output apiUrl string = 'https://${api.properties.defaultHostName}'
 output apiPrincipalName string = api.name
+output apiIdentityClientId string = apiIdentity.properties.clientId
 output staticWebAppName string = staticWebApp.name
 output frontendUrl string = frontendOrigin
 output sqlServerName string = sqlServer.name
