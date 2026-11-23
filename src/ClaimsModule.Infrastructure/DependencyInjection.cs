@@ -1,5 +1,8 @@
 using ClaimsModule.Application.Abstractions.Storage;
 using ClaimsModule.Infrastructure.Storage;
+using ClaimsModule.Application.Abstractions;
+using ClaimsModule.Infrastructure.Identity;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -19,6 +22,12 @@ public static class DependencyInjection
             StorageProvider.LocalFileSystem => ActivatorUtilities.CreateInstance<LocalFileSystemStorageService>(sp),
             var other => throw new InvalidOperationException($"Unknown storage provider '{other}'."),
         });
+
+        // Mock identity (D-32): the configuration-backed directory replaces any placeholder.
+        services.AddSingleton<ConfiguredUserDirectory>();
+        services.Replace(ServiceDescriptor.Singleton<IUserDirectory>(sp => sp.GetRequiredService<ConfiguredUserDirectory>()));
+        services.AddSingleton<IDemoUserAuthenticator>(sp => sp.GetRequiredService<ConfiguredUserDirectory>());
+        services.AddSingleton<IJwtTokenIssuer, JwtTokenIssuer>();
 
         return services;
     }

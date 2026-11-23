@@ -58,13 +58,6 @@ internal sealed class RequestCorrelationContext(IHttpContextAccessor accessor) :
 /// event reaches it, so audit entries can never be dropped silently. The walking skeleton has no
 /// endpoints that raise events.
 /// </summary>
-/// <summary>The demo user directory is configuration-backed and arrives in P4 (task 31, D-32).</summary>
-internal sealed class NotYetWiredUserDirectory : IUserDirectory
-{
-    public Task<DirectoryUser?> FindAsync(Guid userId, CancellationToken cancellationToken) =>
-        throw new InvalidOperationException("The user directory is wired in P4 (task 31).");
-}
-
 internal static class HostingServiceCollectionExtensions
 {
     public const string CorsPolicy = "frontend";
@@ -93,7 +86,10 @@ internal static class HostingServiceCollectionExtensions
         services.AddSingleton<ITenantProvider, ConfiguredTenantProvider>();
         services.AddScoped<ICurrentUser, AnonymousCurrentUser>();
         services.AddScoped<ICorrelationContext, RequestCorrelationContext>();
-        services.AddSingleton<IUserDirectory, NotYetWiredUserDirectory>();
+        services.Configure<ClaimsModule.Infrastructure.Identity.DemoUsersOptions>(configuration.GetSection(ClaimsModule.Infrastructure.Identity.DemoUsersOptions.SectionName));
+        services.Configure<ClaimsModule.Infrastructure.Identity.DemoUserPasswordsOptions>(configuration.GetSection(ClaimsModule.Infrastructure.Identity.DemoUserPasswordsOptions.SectionName));
+        services.Configure<ClaimsModule.Infrastructure.Identity.JwtOptions>(configuration.GetSection(ClaimsModule.Infrastructure.Identity.JwtOptions.SectionName));
+        services.Configure<HangfireDashboardOptions>(configuration.GetSection(HangfireDashboardOptions.SectionName));
         services.Configure<ClaimsModule.Application.Abstractions.Jobs.GlPostingOptions>(configuration.GetSection(ClaimsModule.Application.Abstractions.Jobs.GlPostingOptions.SectionName));
 
         var origins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];

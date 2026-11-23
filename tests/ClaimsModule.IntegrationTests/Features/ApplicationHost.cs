@@ -44,7 +44,8 @@ internal sealed class ApplicationHost : IAsyncDisposable
             o.LocalFileSystem.PublicBaseUrl = "http://localhost:5180/uploads";
         });
         services.AddInfrastructure();
-        services.AddSingleton<IUserDirectory>(new InMemoryUserDirectory([Handler1, Handler2, Supervisor1, Supervisor2, Manager1]));
+        // After AddInfrastructure, which registers the configuration-backed directory.
+        services.Replace(ServiceDescriptor.Singleton<IUserDirectory>(new InMemoryUserDirectory([Handler1, Handler2, Supervisor1, Supervisor2, Manager1])));
         services.AddSingleton<IJobScheduler>(Jobs);
         configure?.Invoke(services);
         _root = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });

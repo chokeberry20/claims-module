@@ -1,3 +1,4 @@
+using Hangfire;
 using ClaimsModule.Infrastructure.Jobs;
 using ClaimsModule.Infrastructure;
 using ClaimsModule.Application.Abstractions.Storage;
@@ -78,6 +79,28 @@ app.MapGet("/health/live", () => Results.Ok(new { status = "Healthy", version = 
 app.MapHealthChecks("/health", new HealthCheckOptions { ResponseWriter = HealthResponseWriter.WriteAsync });
 
 app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
+
+// Hangfire dashboard (D-41): Basic auth when a password is configured (Key Vault in Azure); local
+// requests only in Development without one; otherwise not mapped at all (fail closed).
+var dashboard = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<HangfireDashboardOptions>>().Value;
+if (dashboard.IsConfigured)
+{
+    app.UseHangfireDashboard(HangfireDashboardOptions.Path, new Hangfire.DashboardOptions
+    {
+        Authorization = [new BasicAuthDashboardFilter(dashboard)],
+        DisplayStorageConnectionString = false,
+        AppPath = null,
+    });
+}
+else if (app.Environment.IsDevelopment())
+{
+    app.UseHangfireDashboard(HangfireDashboardOptions.Path, new Hangfire.DashboardOptions
+    {
+        Authorization = [new Hangfire.Dashboard.LocalRequestsOnlyAuthorizationFilter()],
+        DisplayStorageConnectionString = false,
+        AppPath = null,
+    });
+}
 
 if (jobsOptions.ServerEnabled)
 {
