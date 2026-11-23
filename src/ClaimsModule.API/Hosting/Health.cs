@@ -1,21 +1,94 @@
 using System.Text.Json;
 using ClaimsModule.Persistence;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace ClaimsModule.API.Hosting;
 
 /// <summary>
-/// Unhealthy when the database has migrations that haven't been applied. The deploy smoke test
-/// (17e) therefore proves the pipeline really migrated Azure SQL.
+/// Connection settings for the health checks. A health check must fail fast, so it doesn't go
+/// through EF Core's retrying execution strategy (which retries a failing connection for about a
+/// minute, D-56): it opens its own short-timeout connection with no connection retries.
 /// </summary>
-internal sealed class MigrationsHealthCheck(ClaimsDbContext context) : IHealthCheck
+internal sealed class HealthCheckDatabase(string connectionString)
+{
+    public static readonly TimeSpan CheckTimeout = TimeSpan.FromSeconds(10);
+    private const int ConnectTimeoutSeconds = 5;
+    private const int CommandTimeoutSeconds = 5;
+
+    private readonly string _connectionString = new SqlConnectionStringBuilder(connectionString)
+    {
+        ConnectTimeout = ConnectTimeoutSeconds,
+        ConnectRetryCount = 0,
+        ApplicationName = "ClaimsModule.HealthCheck",
+    }.ConnectionString;
+
+    public async Task<SqlConnection> OpenAsync(CancellationToken cancellationToken)
+    {
+        var connection = new SqlConnection(_connectionString);
+        try
+        {
+            await connection.OpenAsync(cancellationToken);
+            return connection;
+        }
+        catch
+        {
+            await connection.DisposeAsync();
+            throw;
+        }
+    }
+
+    public static SqlCommand Command(SqlConnection connection, string sql) =>
+        new(sql, connection) { CommandTimeout = CommandTimeoutSeconds };
+}
+
+/// <summary>Healthy when the database accepts a connection and answers a trivial query.</summary>
+internal sealed class DatabaseHealthCheck(HealthCheckDatabase database) : IHealthCheck
 {
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext healthContext, CancellationToken cancellationToken = default)
     {
-        var applied = (await context.Database.GetAppliedMigrationsAsync(cancellationToken)).ToList();
-        var pending = (await context.Database.GetPendingMigrationsAsync(cancellationToken)).ToList();
+        try
+        {
+            await using var connection = await database.OpenAsync(cancellationToken);
+            await using var command = HealthCheckDatabase.Command(connection, "SELECT 1");
+            await command.ExecuteScalarAsync(cancellationToken);
+            return HealthCheckResult.Healthy();
+        }
+        catch (Exception ex) when (ex is SqlException or InvalidOperationException or TimeoutException)
+        {
+            return HealthCheckResult.Unhealthy(ex.Message);
+        }
+    }
+}
 
+/// <summary>
+/// Unhealthy when the database has migrations that haven't been applied. The deploy smoke test
+/// (17e) therefore proves the pipeline really migrated Azure SQL. The expected list comes from the
+/// compiled migrations (no database access); the applied list from __EFMigrationsHistory.
+/// </summary>
+internal sealed class MigrationsHealthCheck(ClaimsDbContext context, HealthCheckDatabase database) : IHealthCheck
+{
+    public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext healthContext, CancellationToken cancellationToken = default)
+    {
+        var applied = new List<string>();
+        try
+        {
+            await using var connection = await database.OpenAsync(cancellationToken);
+            await using var command = HealthCheckDatabase.Command(connection,
+                "IF OBJECT_ID(N'dbo.__EFMigrationsHistory') IS NOT NULL SELECT MigrationId FROM dbo.__EFMigrationsHistory ORDER BY MigrationId");
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                applied.Add(reader.GetString(0));
+            }
+        }
+        catch (Exception ex) when (ex is SqlException or InvalidOperationException or TimeoutException)
+        {
+            return HealthCheckResult.Unhealthy(ex.Message);
+        }
+
+        var pending = context.Database.GetMigrations().Except(applied, StringComparer.Ordinal).ToList();
         var data = new Dictionary<string, object>
         {
             ["applied"] = applied.Count,

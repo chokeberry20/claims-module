@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
 using ClaimsModule.IntegrationTests.Api;
 using ClaimsModule.IntegrationTests.Persistence;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Options;
 
 namespace ClaimsModule.IntegrationTests;
@@ -41,6 +43,27 @@ public sealed class ApiHostSmokeTests(SqlServerDatabaseFixture db)
         migrations.GetProperty("status").GetString().ShouldBe("Healthy");
         migrations.GetProperty("data").GetProperty("pending").GetInt32().ShouldBe(0);
         migrations.GetProperty("data").GetProperty("applied").GetInt32().ShouldBe(4);
+    }
+
+    [Theory]
+    [InlineData("tcp:127.0.0.1,1")] // connection refused immediately
+    [InlineData("tcp:192.0.2.1,1433")] // TEST-NET-1, never routed: the connect attempt hangs until its timeout
+    public async Task Health_fails_fast_when_the_database_is_unreachable(string server)
+    {
+        // With the EF retrying strategy inside the checks this took 17 s and 85 s (measured, P2.5).
+        var unreachable = new SqlConnectionStringBuilder(db.ConnectionString) { DataSource = server }.ConnectionString;
+        await using var factory = new ClaimsApiFactory(db, new Dictionary<string, string?> { ["ConnectionStrings:ClaimsDb"] = unreachable });
+        using var client = factory.CreateClient();
+
+        var stopwatch = Stopwatch.StartNew();
+        var response = await client.GetAsync(new Uri("/health", UriKind.Relative));
+        stopwatch.Stop();
+
+        response.StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        json.RootElement.GetProperty("status").GetString().ShouldBe("Unhealthy");
+        json.RootElement.GetProperty("entries").GetProperty("database").GetProperty("status").GetString().ShouldBe("Unhealthy");
+        stopwatch.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(15)); // checks run in parallel, each capped at 10 s
     }
 
     [Fact]

@@ -24,9 +24,11 @@ if (string.IsNullOrWhiteSpace(connectionString))
 builder.Services.AddClaimsHosting(builder.Configuration);
 builder.Services.AddPersistence(connectionString);
 
+// Fail-fast checks: their own short-timeout connection, outside the EF retry strategy.
+builder.Services.AddSingleton(new HealthCheckDatabase(connectionString));
 builder.Services.AddHealthChecks()
-    .AddDbContextCheck<ClaimsDbContext>("database")
-    .AddCheck<MigrationsHealthCheck>("migrations");
+    .AddCheck<DatabaseHealthCheck>("database", timeout: HealthCheckDatabase.CheckTimeout)
+    .AddCheck<MigrationsHealthCheck>("migrations", timeout: HealthCheckDatabase.CheckTimeout);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options => options.SwaggerDoc("v1", new OpenApiInfo
