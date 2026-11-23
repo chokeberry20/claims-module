@@ -156,14 +156,26 @@ jobs:
               db/scripts/app-user-azure.sql > out-app-user.sql
           if grep -q '\$(' out-app-user.sql; then echo "::error::unsubstituted sqlcmd variable in out-app-user.sql"; exit 1; fi
           cat db/scripts/app-role.sql out-app-user.sql > grant-app.sql
+
+      # go-sqlcmd, pinned and checksum-verified. It is called directly because azure/sql-action@v2
+      # ignores its `arguments` input for .sql files, so `-b` never reached sqlcmd and a failed
+      # CREATE USER (Msg 33134, first deploy) was reported as "Successfully executed SQL file".
+      - name: Install go-sqlcmd
+        env:
+          SQLCMD_VERSION: v1.10.0
+          SQLCMD_SHA256: 92516d98c63d99b0994de5b61350c91f6915f9b76f139a59039fbcb225c2e987
+        run: |
+          curl -fsSL -o sqlcmd.tar.bz2 "https://github.com/microsoft/go-sqlcmd/releases/download/${SQLCMD_VERSION}/sqlcmd-linux-amd64.tar.bz2"
+          echo "${SQLCMD_SHA256}  sqlcmd.tar.bz2" | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/go-sqlcmd" && tar -xjf sqlcmd.tar.bz2 -C "$RUNNER_TEMP/go-sqlcmd"
+          echo "$RUNNER_TEMP/go-sqlcmd" >> "$GITHUB_PATH"
+
       - name: Run the grant script
-        uses: azure/sql-action@v2
-        with:
-          connection-string: Server=tcp:${{ steps.outputs.outputs.sql_server_fqdn }},1433;Database=${{ steps.outputs.outputs.sql_database }};Authentication=Active Directory Default;Encrypt=True;
-          path: grant-app.sql
-          # -b: exit non-zero on the first SQL error. Without it, the first deploy's failed CREATE USER
-          # (Msg 33134) was reported as "Successfully executed SQL file".
-          arguments: -b
+        run: |
+          sqlcmd --version
+          # -b: stop and exit non-zero on the first SQL error, which fails this step.
+          sqlcmd -b -S "tcp:${{ steps.outputs.outputs.sql_server_fqdn }},1433" -d "${{ steps.outputs.outputs.sql_database }}" \
+            --authentication-method ActiveDirectoryDefault -i grant-app.sql
 
       - name: Close SQL firewall
         if: always() && steps.firewall.outputs.rule != ''

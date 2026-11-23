@@ -1,6 +1,6 @@
 -- Least-privilege database role for the Claims API (P2.5 task 17f).
 -- Idempotent; run as the database owner/admin AFTER the migrations. No GO separators, so it can be
--- run by sqlcmd, azure/sql-action or a plain SqlCommand (the integration tests do exactly that).
+-- run by sqlcmd or a plain SqlCommand (the integration tests do exactly that).
 --
 -- The API gets data access only: no DDL on dbo, and the audit log is append-only at the permission
 -- level too (BR-A-01, S14.2), on top of the EF guard and the INSTEAD OF trigger.

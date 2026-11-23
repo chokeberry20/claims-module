@@ -13,7 +13,7 @@
 -- Manual run with go-sqlcmd (-b: stop and exit non-zero on the first error):
 --   sqlcmd -b -S <server>.database.windows.net -d ClaimsModule --authentication-method ActiveDirectoryDefault \
 --          -v AppPrincipalName=<api-app-name> AppClientId=<client-id> -i db/scripts/app-role.sql -i db/scripts/app-user-azure.sql
--- deploy.yml substitutes both variables with sed and runs the script with azure/sql-action (-b).
+-- deploy.yml substitutes both variables with sed and runs the script with go-sqlcmd -b.
 
 IF DATABASE_PRINCIPAL_ID(N'$(AppPrincipalName)') IS NULL
 BEGIN
