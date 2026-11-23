@@ -2,6 +2,7 @@ using ClaimsModule.Application.Abstractions;
 using ClaimsModule.Application.Abstractions.Persistence;
 using ClaimsModule.Domain.Common;
 using ClaimsModule.Persistence;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ClaimsModule.IntegrationTests.Persistence;
@@ -39,7 +40,7 @@ internal sealed class PersistenceServices : IAsyncDisposable
 {
     private readonly ServiceProvider _root;
 
-    public PersistenceServices(SqlServerDatabaseFixture db)
+    public PersistenceServices(SqlServerDatabaseFixture db, Action<SqlServerDbContextOptionsBuilder>? configureSqlServer = null)
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -48,7 +49,7 @@ internal sealed class PersistenceServices : IAsyncDisposable
         services.AddSingleton<ITenantProvider>(Tenant);
         services.AddSingleton<ICorrelationContext>(Correlation);
         services.AddSingleton<IDomainEventDispatcher>(Dispatcher);
-        services.AddPersistence(db.ConnectionString);
+        services.AddPersistence(db.ConnectionString, configureSqlServer);
         _root = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
     }
 

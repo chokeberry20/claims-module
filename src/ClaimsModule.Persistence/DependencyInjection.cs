@@ -4,6 +4,7 @@ using ClaimsModule.Persistence.Interceptors;
 using ClaimsModule.Persistence.Repositories;
 using ClaimsModule.Persistence.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -15,8 +16,16 @@ public static class DependencyInjection
     /// Registers the DbContext with its interceptors, the Unit of Work, repositories, the claim number
     /// generator and the audit log service. The host must register ICurrentUser, ITenantProvider,
     /// ICorrelationContext and IDomainEventDispatcher. TimeProvider defaults to the system clock.
+    /// <para>
+    /// Transient SQL errors (Azure SQL failovers, throttling) are retried by EF Core's SQL Server
+    /// retrying execution strategy (D-56, P2.5 task 17f). <paramref name="configureSqlServer"/> runs
+    /// after that default, so a caller can change or replace the strategy.
+    /// </para>
     /// </summary>
-    public static IServiceCollection AddPersistence(this IServiceCollection services, string connectionString)
+    public static IServiceCollection AddPersistence(
+        this IServiceCollection services,
+        string connectionString,
+        Action<SqlServerDbContextOptionsBuilder>? configureSqlServer = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
@@ -28,7 +37,11 @@ public static class DependencyInjection
         services.AddScoped<AuditableEntityInterceptor>();
 
         services.AddDbContext<ClaimsDbContext>((sp, options) => options
-            .UseSqlServer(connectionString)
+            .UseSqlServer(connectionString, sql =>
+            {
+                sql.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null);
+                configureSqlServer?.Invoke(sql);
+            })
             .AddInterceptors(
                 sp.GetRequiredService<AppendOnlyGuardInterceptor>(),
                 sp.GetRequiredService<SoftDeleteInterceptor>(),

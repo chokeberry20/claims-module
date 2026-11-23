@@ -26,6 +26,13 @@ public interface IUnitOfWork
     /// <summary>
     /// Runs <paramref name="work"/> in one database transaction. Needed when raw SQL (claim number
     /// allocation) and SaveChanges must commit or roll back together (D-14).
+    /// <para>
+    /// After a transient database failure the whole of <paramref name="work"/> is replayed on a
+    /// cleared change tracker (D-56). So <paramref name="work"/> must be self-contained: it loads,
+    /// creates and changes every entity it saves, and never relies on entities tracked or aggregates
+    /// created before the call. A failure during commit itself is ambiguous; P3's idempotency
+    /// records make a replayed command safe.
+    /// </para>
     /// </summary>
     Task<T> ExecuteInTransactionAsync<T>(Func<CancellationToken, Task<T>> work, CancellationToken cancellationToken = default);
 }

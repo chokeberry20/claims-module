@@ -63,18 +63,37 @@ internal sealed partial class UnitOfWork(
             return await work(cancellationToken);
         }
 
-        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        // With EnableRetryOnFailure, a user-initiated transaction must run inside the execution
+        // strategy, otherwise the first EF operation in it throws (D-56, verified in P2). The strategy
+        // replays the whole delegate after a transient failure, so each attempt starts clean: the
+        // failed attempt's rolled-back entities and its collected events are discarded. That is why
+        // `work` must load and change everything itself (see IUnitOfWork.ExecuteInTransactionAsync).
+        var attempt = 0;
         try
         {
-            var result = await work(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
+            var result = await context.Database.CreateExecutionStrategy().ExecuteAsync(
+                async ct =>
+                {
+                    if (attempt++ > 0)
+                    {
+                        context.ChangeTracker.Clear();
+                        _awaitingCommit.Clear();
+                    }
+
+                    // Disposing an uncommitted transaction rolls it back.
+                    await using var transaction = await context.Database.BeginTransactionAsync(ct);
+                    var value = await work(ct);
+                    await transaction.CommitAsync(ct);
+                    return value;
+                },
+                cancellationToken);
+
             await FlushAfterCommitAsync(cancellationToken);
             return result;
         }
         catch
         {
             _awaitingCommit.Clear();
-            await transaction.RollbackAsync(CancellationToken.None);
             throw;
         }
     }
