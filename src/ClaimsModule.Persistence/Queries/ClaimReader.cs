@@ -197,3 +197,34 @@ internal sealed class ReserveReader(ClaimsDbContext context, IMapper mapper) : C
         return new ClaimsModule.Application.Reserves.ClaimReservesDto(claimId, ClaimReader.Totals(components), history);
     }
 }
+
+/// <summary>ClaimAuditLog reads (tenant-filtered by the context), newest first.</summary>
+internal sealed class AuditLogReader(ClaimsDbContext context) : ClaimsModule.Application.Audit.IAuditLogReader
+{
+    public async Task<PagedResult<ClaimsModule.Application.Audit.AuditLogEntryDto>?> ListAsync(
+        Guid claimId, string? eventType, int page, int pageSize, CancellationToken cancellationToken)
+    {
+        if (!await context.Claims.AnyAsync(c => c.Id == claimId, cancellationToken))
+        {
+            return null;
+        }
+
+        var entries = context.AuditLog.AsNoTracking().Where(a => a.ClaimId == claimId);
+        if (eventType is not null)
+        {
+            entries = entries.Where(a => a.EventType == eventType);
+        }
+
+        var total = await entries.CountAsync(cancellationToken);
+        var items = await entries
+            .OrderByDescending(a => a.CreatedAt).ThenByDescending(a => a.AuditLogId)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(a => new ClaimsModule.Application.Audit.AuditLogEntryDto(
+                a.AuditLogId, a.EventType, a.Description, a.OldValue, a.NewValue, a.RelatedEntityId,
+                a.RelatedEntityType, a.CorrelationId, a.CreatedByUserId, a.CreatedAt))
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<ClaimsModule.Application.Audit.AuditLogEntryDto>(items, page, pageSize, total);
+    }
+}
