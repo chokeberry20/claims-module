@@ -1,6 +1,6 @@
 # Claims Module (FNOL + Reserve Management): Plan
 
-_Status: approved plan, revision 4 (2026-11-22). Implementation has not started._
+_Status: approved plan, revision 4 (2026-11-22). Implementation: P0, P1, P2, P2.5 and P3 done and reviewed; P4 in progress (see the status line under each phase; details and run IDs in ai-log.md)._
 _Related: [DECISIONS.md](DECISIONS.md) (D-01…D-59), [ai-log.md](ai-log.md)._
 _Section numbering follows the approved plan: §7 (ambiguities and contradictions) is in DECISIONS.md, and §9 (AI log) is in ai-log.md._
 
@@ -163,7 +163,7 @@ src/
   ClaimsModule.API             → all (composition root). Controllers, middleware (exception→ProblemDetails, correlation, idempotency),
                                   auth policies, Swagger, Hangfire server/dashboard, CORS, health checks
 tests/
-  ClaimsModule.Domain.Tests, ClaimsModule.Application.Tests, ClaimsModule.IntegrationTests (WebApplicationFactory + a real SQL Server: a dedicated test DB on `.SQLEXPRESS01` locally, a SQL Server 2022 service container in GitHub Actions; no Testcontainers, D-42), [Stretch] ClaimsModule.ArchitectureTests (NetArchTest)
+  ClaimsModule.Domain.Tests, ClaimsModule.Application.Tests, ClaimsModule.IntegrationTests (WebApplicationFactory + a real SQL Server: a dedicated test DB on `.\SQLEXPRESS01` locally, a SQL Server 2022 service container in GitHub Actions; no Testcontainers, D-42), [Stretch] ClaimsModule.ArchitectureTests (NetArchTest)
 web/claims-web   Angular (standalone, lazy routes)
 infra/           Bicep (App Service, SWA, Azure SQL, Storage, Key Vault, App Insights)
 .github/workflows/  ci.yml (PR build+test), deploy.yml (workflow_dispatch: build, efbundle migrate, deploy API + SWA)
@@ -261,7 +261,9 @@ Each task ends with a **Verify** check. Commit after each task (git init in P0).
 1. `git init`, `.gitignore` (**including `files/`**: the brief is CONFIDENTIAL and the .docx files must never be committed), `.editorconfig`, `Directory.Build.props` (net9.0, nullable, TreatWarningsAsErrors, LangVersion 13), `Directory.Packages.props` with pinned versions. *Verify:* `dotnet --version` shows 9.x.
 2. Solution plus the 5 src and 4 test projects, with references following the dependency rule. *Verify:* `dotnet build` passes.
 3. **[Stretch]** Architecture tests (NetArchTest): Domain has no references, Application doesn't reference Persistence or Infrastructure, Infrastructure doesn't reference Persistence. *Verify:* `dotnet test` passes. The baseline relies on project references to enforce the dependency rule.
-4. **Local environment (D-42, replaces docker-compose).** `appsettings.Development.json` in the API gets `ConnectionStrings:ClaimsDb = Server=.SQLEXPRESS01;Database=ClaimsModule;Trusted_Connection=True;TrustServerCertificate=True` (Windows auth, so no secret) and `Storage:Provider = LocalFileSystem`. The test settings point to `ClaimsModule_Tests`. *Verify:* `sqlcmd -S .SQLEXPRESS01 -E -C -Q "SELECT @@VERSION"` connects. The database itself is created by the migrations in P2.
+4. **Local environment (D-42, replaces docker-compose).** `appsettings.Development.json` in the API gets `ConnectionStrings:ClaimsDb = Server=.\SQLEXPRESS01;Database=ClaimsModule;Trusted_Connection=True;TrustServerCertificate=True` (Windows auth, so no secret) and `Storage:Provider = LocalFileSystem`. The test settings point to `ClaimsModule_Tests`. *Verify:* `sqlcmd -S .\SQLEXPRESS01 -E -C -Q "SELECT @@VERSION"` connects. The database itself is created by the migrations in P2.
+
+*Status 2026-11-23: **P0 done** (branch `p0-bootstrap`, last commit `5527caf`).* Task 3 was skipped as Stretch and replaced by reflection-based layer tests. Your first review rejected P0 because of a false "6/6 tests pass" claim (C-13, a JSON backslash bug); it was accepted after the fix and the build-and-test-before-every-commit rule.
 
 **P1 – Domain** (TDD)
 5. Building blocks: `Entity`, `AggregateRoot` (domain events), `IDomainEvent`, `SequentialGuid`, `DomainRuleViolationException`, `Money`, enums. *Verify:* unit tests.
@@ -271,6 +273,8 @@ Each task ends with a **Verify** check. Commit after each task (git init in P0).
 9. `ClaimReserveComponent` aggregate: Add/Adjust/Reverse, sign rule, ChangeSequence, idempotency key, one pending, retract, approve/reject with the self-approval check and authority check, CurrentAmount projection. *Verify:* tests at the thresholds 10,000 / 10,000.01 / 100,000 / 100,000.01, plus self-approval and subrogation negatives.
 10. `ReserveAuthorityPolicy` and the aggregate-limit check (D-19). *Verify:* tests.
 
+*Status 2026-11-23: **P1 done and accepted** (branch `p1-domain`, last commit `91037c8`).* Review decisions: D-43 rationale, D-44 added to the deviations, P3 task 25a added.
+
 **P2 – Persistence**
 11. `ClaimsDbContext`, base conventions (PK default `NEWSEQUENTIALID()`, decimal(19,4), DATETIMEOFFSET, strings for enums, NVARCHAR sizes, shadow OrganisationId/UserCreated/UserModified/DeletedAt), and global soft-delete and tenant filters. *Verify:* a model snapshot test.
 12. Entity configurations for all tables: Claims, LossEvents, ClaimParties, ClaimRiskObjects, ClaimValidationIssues, ClaimReserveComponents, ReserveHistory (unique IdempotencyKey, unique (Component, Sequence)), ClaimDocuments, ClaimAuditLog, CauseOfLossCodes, Policies, ClaimStatusTransitions, ClaimNumberSequences, IdempotencyRecords. RowVer goes on Claims and Components. *Verify:* `dotnet ef migrations add Initial`, then review the generated SQL types.
@@ -279,6 +283,8 @@ Each task ends with a **Verify** check. Commit after each task (git init in P0).
 15. `ClaimNumberGenerator` (MERGE/UPDATE OUTPUT). *Verify:* 50 parallel generations inside transactions give consecutive, distinct numbers. A rollback leaves no gap.
 16. Repositories, `UnitOfWork` (transaction, pre/post-commit event dispatch), `AuditLogService`, read services. *Verify:* integration tests.
 17. Export the idempotent SQL script to `db/scripts`. *Verify:* the file exists and runs on an empty DB.
+
+*Status 2026-11-23: **P2 done and accepted** (branch `p2-persistence`, last commit `5c7eac9`; 306 domain + 132 integration tests).* Review follow-ups: deterministic HOLDLOCK range-lock tests, stale-Pending sweep moved into core scope (P3 task 27a), retry-strategy note (D-56). A gap in P2's aggregate-root versioning was found and fixed in P3 (`f8ea292`, D-68).
 
 **P2.5 – Walking skeleton on Azure** (moved forward from P7; you asked for this)
 17a. Minimal API host: `Program.cs` with Serilog, Swagger, `/health` (with a DB check), and the DbContext registered. No business endpoints yet. *Verify:* it runs locally against the migrated DB, and `/swagger` and `/health` respond.
@@ -334,7 +340,7 @@ Each task ends with a **Verify** check. Commit after each task (git init in P0).
 28. Domain-event → audit handlers for every S14.1 event. *Verify:* a test asserts that each command emits the expected event types.
 28a. Deploy & smoke. API endpoints arrive in P5, so for now this checks that migrations for any new tables apply on Azure.
 
-*Status 2026-11-23: tasks 18–28 done* (branch `p3-application`; including 23a, 25a and 27a); every task has integration tests through the real MediatR pipeline on SQL Server, plus a mutation check. **28a (deploy & smoke) is pending your approval** to push and run deploy.yml. New in this phase: the AddPostingLastEnqueuedAt migration, and D-66 to D-68.
+*Status 2026-11-23: **P3 done, including 28a*** (branch `p3-application`, merged to `main` at `c163a53`; tasks 18–28 including 23a, 25a and 27a). Every task has integration tests through the real MediatR pipeline on SQL Server, plus a mutation check. **28a:** deploy run 45233506838 (`5a9ef94`, `deploy_infra=true`) applied the AddPostingLastEnqueuedAt migration. The smoke test passed 7 of 7 after `/health/live` reported the deployed commit. The first attempt (run 45230074656) failed its smoke test because the test checked the old process during the switch-over; fixed by D-69. Review fixes: the flaky tenant fail-fast test made deterministic (`d080aea`) and partial claim-number search (`8c4801c`). New in this phase: D-66 to D-69.
 
 **P4 – Infrastructure**
 29. `LocalFileSystemStorageService` (plain `/uploads/...` URL) and `AzureBlobStorageService` (**account-key SAS**, 1h, read-only, single blob). Provider switch, filename sanitiser, extension and MIME allowlist, 50 MB limit. *Verify:* unit tests, plus a LocalFileSystem integration test. The AzureBlob SAS (downloads the file, 1h expiry) is checked against the real storage account in the post-deploy smoke test (D-42).
