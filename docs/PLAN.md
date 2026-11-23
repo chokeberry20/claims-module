@@ -1,7 +1,7 @@
 # Claims Module (FNOL + Reserve Management): Plan
 
-_Status: approved plan, revision 4 (2026-11-22). Implementation: P0, P1, P2, P2.5 and P3 done and reviewed; P4 done and awaiting review (see the status line under each phase; details and run IDs in ai-log.md)._
-_Related: [DECISIONS.md](DECISIONS.md) (D-01…D-59), [ai-log.md](ai-log.md)._
+_Status: approved plan, revision 4 (2026-11-22). Implementation: P0–P4 done and reviewed; P5 tasks 32–35 done, 35a (deploy & smoke) prepared and awaiting your approval (see the status line under each phase; details and run IDs in ai-log.md)._
+_Related: [DECISIONS.md](DECISIONS.md) (D-01…D-72), [ai-log.md](ai-log.md)._
 _Section numbering follows the approved plan: §7 (ambiguities and contradictions) is in DECISIONS.md, and §9 (AI log) is in ai-log.md._
 
 `files/` has two documents:
@@ -349,7 +349,7 @@ Each task ends with a **Verify** check. Commit after each task (git init in P0).
 31. JWT issuer, demo user directory, correlation context, and `BasicAuthDashboardFilter` (D-41). *Verify:* tests. Missing or wrong credentials get 401 with `WWW-Authenticate`. Correct credentials pass.
 31a. Deploy & smoke. Check that the storage connection string and the Hangfire dashboard password from Key Vault resolve on App Service.
 
-*Status 2026-11-23: **P4 tasks 29–31a done, awaiting your review*** (branch `p4-infrastructure`, `b9f1c93`; plus Azure Monitor OpenTelemetry). CI run 45267106399 green (44 + 318 + 301). **31a:** deploy run 45267640714 (`deploy_infra=true`): smoke 9 of 9 after `/health/live` reported the commit, including `storage` Healthy and `/hangfire` 401 with a Basic challenge. All 7 Key Vault references are Resolved. The dashboard opens with the Key Vault password and refuses a wrong one, and lists both recurring jobs (Hangfire's tables installed under the least-privilege role). App Insights receives requests, SQL dependencies and logs. Open: the startup warm-up log line was not found in AppTraces.
+*Status 2026-11-23: **P4 tasks 29–31a done; reviewed and accepted 2026-11-23*** (`main` fast-forwarded to `921601d`) (branch `p4-infrastructure`, `b9f1c93`; plus Azure Monitor OpenTelemetry). CI run 45267106399 green (44 + 318 + 301). **31a:** deploy run 45267640714 (`deploy_infra=true`): smoke 9 of 9 after `/health/live` reported the commit, including `storage` Healthy and `/hangfire` 401 with a Basic challenge. All 7 Key Vault references are Resolved. The dashboard opens with the Key Vault password and refuses a wrong one, and lists both recurring jobs (Hangfire's tables installed under the least-privilege role). App Insights receives requests, SQL dependencies and logs. The open warm-up log question was resolved in P5 task 0 (D-71).
 
 **P5 – API**
 32. Program composition: auth (JWT Bearer plus role policies), CORS, Swagger with Bearer, Hangfire server, `RecurringJob.AddOrUpdate("sla", "*/15 * * * *")`. Then the dashboard at `/hangfire` behind Basic auth, mapped only when credentials are configured (D-41). *Verify:* the app starts on a migrated DB and `/swagger` loads. Anonymous `/hangfire` makes the browser prompt. The configured credentials open the dashboard.
@@ -357,6 +357,8 @@ Each task ends with a **Verify** check. Commit after each task (git init in P0).
 34. Controllers: claims, parties, risk-objects, reserves, documents, audit, reference, policies, auth. *Verify:* a WebApplicationFactory end-to-end (test DB on SQLEXPRESS01 locally, SQL 2022 service container in CI) scenario: login → FNOL → reserve 50k by handler1 → handler1 approve gives 403 → supervisor approve → job runs → audit shows GL_POSTING_SIMULATED → upload → close checklist → close → reopen.
 35. A `.http` file with demo requests. *Verify:* run it manually.
 35a. Deploy & smoke. Run the P5 end-to-end scenario against the **Azure** URL with the `.http` file or the smoke script.
+
+*Status 2026-11-24: **P5 tasks 0 and 32–35 done; 35a prepared, awaiting your approval*** (branch `p5-api`). Task 0 (your additions): the warm-up runs as a hosted service so its log line reaches App Insights, and Hangfire's parentless SQL is no longer exported (D-71). Tasks 32–34: JWT auth, the S10.4 error pipeline, controllers, Swagger; D-72 records the choices, including **no ASP.NET role policies** (role minimums stay in the MediatR pipeline). The HTTP end-to-end test (task 34 scenario, real Hangfire server) passes. Task 35: `ClaimsModule.API.http`, run locally top to bottom with `scripts/run-http.ps1`: every step returned the expected status. Smoke test extended (9 of 9 locally). **35a needs:** push, CI, deploy with `deploy_infra=true` (new app setting), then the `.http` flow against Azure with the handler1 and supervisor1 passwords read from Key Vault.
 
 **P6a – Minimal demo-flow UI** (covers the brief §7.2 live demo: FNOL → reserve → approval → upload → audit; you asked for this)
 36. *(Scaffold done in 17b.)* Core: models and typed API services, mock auth with login, role switcher (handler1, handler2, supervisor1, manager1), auth/error/loading interceptors, snackbar service. *Verify:* unit tests for the interceptors. Switching roles changes the header.

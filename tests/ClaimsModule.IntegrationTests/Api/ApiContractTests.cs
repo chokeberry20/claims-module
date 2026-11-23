@@ -140,6 +140,23 @@ public sealed class ApiContractTests(SqlServerDatabaseFixture db) : IDisposable
     }
 
     [Fact]
+    public async Task Expected_failures_are_not_logged_as_errors()
+    {
+        // ASP.NET's exception handler middleware logs every exception it sees as an Error with a stack
+        // trace, even when our handler turns it into a 422 or 403; in Azure that is false alarms in App
+        // Insights. Its category is silenced; the API's own handler logs real 500s (task 35 finding).
+        var logs = new CapturingLoggerProvider();
+        await using var factory = new ClaimsApiFactory(db).WithLogs(logs);
+        using var client = await factory.SignedInClientAsync("handler1");
+
+        (await client.PostJsonAsync("/api/claims", new { lossDate = DateTime.UtcNow.AddDays(2), lossDescription = "short" })).StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await client.PutJsonAsync($"/api/claims/{Guid.NewGuid()}/reserve-limit-override", new { enabled = true })).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        logs.Entries.ShouldContain(e => e.Category.EndsWith("ApiExceptionHandler", StringComparison.Ordinal)); // the capture works
+        logs.Entries.ShouldNotContain(e => e.Level >= Microsoft.Extensions.Logging.LogLevel.Error, string.Join(" | ", logs.Entries.Where(e => e.Level >= Microsoft.Extensions.Logging.LogLevel.Error).Select(e => e.Category)));
+    }
+
+    [Fact]
     public async Task Malformed_json_and_unknown_enum_values_give_the_same_422_shape()
     {
         using var client = await _factory.SignedInClientAsync("handler1");

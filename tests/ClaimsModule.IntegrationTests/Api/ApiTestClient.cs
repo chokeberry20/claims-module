@@ -3,6 +3,10 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace ClaimsModule.IntegrationTests.Api;
 
@@ -19,7 +23,7 @@ internal static class ApiTestClient
     }
 
     /// <summary>A client signed in as <paramref name="userName"/> (bearer token on every request).</summary>
-    public static async Task<HttpClient> SignedInClientAsync(this ClaimsApiFactory factory, string userName)
+    public static async Task<HttpClient> SignedInClientAsync(this WebApplicationFactory<Program> factory, string userName)
     {
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await client.TokenAsync(userName));
@@ -67,6 +71,10 @@ internal static class ApiTestClient
     public static string[] Codes(this JsonElement error, string field) =>
         error.GetProperty("codes").GetProperty(field).EnumerateArray().Select(e => e.GetString()!).ToArray();
 
+    /// <summary>The host with an extra logger provider (Serilog forwards to the registered providers).</summary>
+    public static WebApplicationFactory<Program> WithLogs(this ClaimsApiFactory factory, CapturingLoggerProvider logs) =>
+        factory.WithWebHostBuilder(b => b.ConfigureTestServices(s => s.AddSingleton<ILoggerProvider>(logs)));
+
     /// <summary>An in-force seeded policy and an active cause code, read through the API.</summary>
     public static async Task<(Guid PolicyId, string CauseCode, DateOnly EffectiveDate)> ReferenceAsync(this HttpClient client)
     {
@@ -90,4 +98,45 @@ internal static class ApiTestClient
     };
 
     private static DateOnly MaxOf(DateOnly a, DateOnly b) => a > b ? a : b;
+}
+
+internal sealed record CapturedLog(string Category, LogLevel Level, string Message);
+
+/// <summary>Keeps every log entry the host writes (thread-safe).</summary>
+internal sealed class CapturingLoggerProvider : ILoggerProvider
+{
+    private readonly List<CapturedLog> _entries = [];
+
+    public IReadOnlyList<CapturedLog> Entries
+    {
+        get
+        {
+            lock (_entries)
+            {
+                return [.. _entries];
+            }
+        }
+    }
+
+    public ILogger CreateLogger(string categoryName) => new Logger(this, categoryName);
+
+    public void Dispose()
+    {
+    }
+
+    private sealed class Logger(CapturingLoggerProvider owner, string category) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            lock (owner._entries)
+            {
+                owner._entries.Add(new CapturedLog(category, logLevel, formatter(state, exception)));
+            }
+        }
+    }
 }

@@ -98,6 +98,38 @@ else
   fail "Swagger document returned $status"
 fi
 
+if grep -q '/api/claims/{claimId}/reserves' "$body_file"; then
+  pass "Swagger documents the P5 endpoints"
+else
+  fail "Swagger does not document /api/claims/{claimId}/reserves"
+fi
+
+# P5 (task 35a): the API is secured. Anonymous calls get 401 with a Bearer challenge and the S10.4
+# error body; the correlation id is echoed. Signed-in flows need the demo passwords (Key Vault), so
+# they are not part of this unattended smoke test: scripts/run-http.ps1 runs the full demo flow.
+smoke_correlation="5a0c7e1e-0000-4000-8000-00000000a5a5"
+headers=$(curl -sS -o "$body_file" -D - --max-time 30 -H "X-Correlation-Id: $smoke_correlation" "$api/api/claims" || true)
+clean_headers=$(printf '%s' "$headers" | tr -d '\r')
+if printf '%s' "$clean_headers" | grep -qE '^HTTP/[0-9.]+ 401' \
+   && printf '%s' "$clean_headers" | grep -qi '^www-authenticate: bearer' \
+   && grep -q '"type":"Unauthorized"' "$body_file"; then
+  pass "anonymous /api/claims gives 401 Bearer with the S10.4 body"
+else
+  fail "anonymous /api/claims: $(printf '%s' "$clean_headers" | head -1) $(head -c 200 "$body_file")"
+fi
+if printf '%s' "$clean_headers" | grep -qi "^x-correlation-id: $smoke_correlation"; then
+  pass "X-Correlation-Id is echoed"
+else
+  fail "X-Correlation-Id is not echoed"
+fi
+
+status=$(fetch "$api/api/auth/users")
+if [ "$status" = 200 ] && grep -q '"userName":"supervisor1"' "$body_file" && ! grep -qi 'password' "$body_file"; then
+  pass "/api/auth/users lists the demo users (no passwords)"
+else
+  fail "/api/auth/users returned $status: $(head -c 200 "$body_file")"
+fi
+
 if [ -n "$web" ]; then
   echo "Frontend: $web"
 

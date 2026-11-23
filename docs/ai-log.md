@@ -502,3 +502,23 @@ Branch `p4-infrastructure` (from `main` = `c163a53`). Build + all tests right be
   - The AI tried to install `dotnet-stack` (a global .NET tool) to read the hung process's stacks; **the install was denied by the permission check**, and the AI did not work around it. Root cause unknown.
   - **Mitigation:** the run now creates only one telemetry-enabled host. The host-level telemetry checks are one test, and the P4 "telemetry on" test was folded into it. That test has a 120 s timeout, so a recurrence fails instead of hanging CI. In Azure the app runs one host per process. Since then: 5 of 5 API-group runs and the full suite without a hang.
 - **Privacy finding:** the exporter diagnostics showed that test hosts with telemetry on (since P4) sent **Live Metrics pings to `rt.services.visualstudio.com`** with the dummy key `00000000-…`, so test runs made outbound calls to a Microsoft service. Nothing else was sent: the ingestion endpoint was a dead or local address. Tests now switch Live Metrics off (`Telemetry:EnableLiveMetrics=false`).
+
+**P5 task 35: the `.http` file, local verification, smoke test (35a prepared).**
+- `src/ClaimsModule.API/ClaimsModule.API.http` holds the demo flow in 25 requests, from health and sign-in through FNOL, the 422 example, Open, the 50k reserve, the handler's 403, supervisor approval, an auto-approved expense, upload, audit, close and reopen.
+  - Passwords come from environment variables (`CLAIMS_HANDLER1_PASSWORD`, `CLAIMS_SUPERVISOR1_PASSWORD`), never from the file.
+  - *AI slip, fixed before commit:* the first version used one password variable for both users. That works locally, but in Azure each demo user has its own Key Vault secret.
+- **Verified locally by running the file, not by reading it.** There is no command-line `.http` runner here, so the AI wrote `scripts/run-http.ps1` (named responses, `$processEnv`, `$timestamp`, `$datetime`). The API ran on SQL Express with a random JWT key and demo password passed as environment variables of that process only; no user secrets were written.
+  - All 25 requests returned the expected status, and both GL postings ran.
+  - Two runner mistakes along the way: a PowerShell reversed range invented a body for body-less requests, and the first run's password lived in a previous shell process, so every sign-in got 422.
+- **Found by reading the API's log during that run:** ASP.NET's exception-handler middleware logs **every** exception it sees at Error with a stack trace, including the expected 422 and 403. In Azure that would mean false errors in App Insights for ordinary rule breaks.
+  - Fix: its log category is set to Fatal. `ApiExceptionHandler` still logs real 500s at Error.
+  - A test asserts that a 422 and a 403 produce no Error-level log entry. It **fails without the fix** (checked by removing the setting) and passes with it. A second local run of the flow had 0 Error-level lines.
+- `scripts/set-dev-secrets.ps1` sets the local user secrets: a random JWT key and one demo password for the four users, entered as a SecureString. It prints only the key names.
+- **Smoke test** (no secrets in the pipeline):
+  - anonymous `/api/claims` gets 401 Bearer with the S10.4 body;
+  - the correlation id is echoed;
+  - `/api/auth/users` lists the demo users without passwords;
+  - Swagger documents the P5 endpoints.
+  
+  Locally 9 of 9 checks pass (the dashboard check is Azure-only).
+- **35a is waiting for your approval:** push `p5-api`, CI, a deploy with `deploy_infra=true` (the new `ASPNETCORE_FORWARDEDHEADERS_ENABLED` app setting), then `run-http.ps1` against the Azure URL, with the handler1 and supervisor1 passwords read from Key Vault into environment variables and never printed.

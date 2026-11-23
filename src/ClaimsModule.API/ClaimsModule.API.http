@@ -1,0 +1,166 @@
+# Claims Module API: the demo flow (P5 task 35). Works in Visual Studio, Rider and VS Code (REST Client).
+#
+# Local: run the API (dotnet run --project src/ClaimsModule.API), after scripts/set-dev-secrets.ps1.
+# Azure: change @baseUrl to the App Service URL; the demo passwords are Key Vault secrets
+# (DemoUserPassword-handler1, DemoUserPassword-supervisor1).
+# Passwords come from environment variables, never from this file: CLAIMS_HANDLER1_PASSWORD and
+# CLAIMS_SUPERVISOR1_PASSWORD (locally both are the one password given to scripts/set-dev-secrets.ps1).
+# Run the requests top to bottom: later ones use ids from earlier responses (# @name).
+
+@baseUrl = http://localhost:5180
+@handlerPassword = {{$processEnv CLAIMS_HANDLER1_PASSWORD}}
+@supervisorPassword = {{$processEnv CLAIMS_SUPERVISOR1_PASSWORD}}
+
+### Liveness and the deployed build (anonymous)
+GET {{baseUrl}}/health/live
+
+### Full health: database, migrations, storage (anonymous)
+GET {{baseUrl}}/health
+
+### Demo users for the role switcher (anonymous; no passwords)
+GET {{baseUrl}}/api/auth/users
+
+### Sign in as handler1
+# @name handler
+POST {{baseUrl}}/api/auth/token
+Content-Type: application/json
+
+{ "userName": "handler1", "password": "{{handlerPassword}}" }
+
+### Sign in as supervisor1
+# @name supervisor
+POST {{baseUrl}}/api/auth/token
+Content-Type: application/json
+
+{ "userName": "supervisor1", "password": "{{supervisorPassword}}" }
+
+### Reference data: active cause-of-loss codes (filter: ?perilCategory=Auto)
+GET {{baseUrl}}/api/reference/cause-of-loss-codes?perilCategory=Auto
+Authorization: Bearer {{handler.response.body.$.accessToken}}
+
+### Reference data: statuses and their next statuses
+GET {{baseUrl}}/api/reference/claim-statuses
+Authorization: Bearer {{handler.response.body.$.accessToken}}
+
+### Policy search (in force until 2027-12-31)
+# @name policies
+GET {{baseUrl}}/api/policies/search?q=POL-2026-003001
+Authorization: Bearer {{handler.response.body.$.accessToken}}
+
+### Coverage of that policy
+GET {{baseUrl}}/api/policies/{{policies.response.body.$[0].policyId}}/coverage
+Authorization: Bearer {{handler.response.body.$.accessToken}}
+
+### FNOL: create a claim (201, Draft). Repeat it with the same Idempotency-Key: same claim, nothing new created.
+# @name fnol
+POST {{baseUrl}}/api/claims
+Authorization: Bearer {{handler.response.body.$.accessToken}}
+Content-Type: application/json
+Idempotency-Key: demo-fnol-{{$timestamp}}
+
+{
+  "policyId": "{{policies.response.body.$[0].policyId}}",
+  "lossDate": "{{$datetime iso8601 -1 d}}",
+  "lossDescription": "Rear-end collision at a traffic light; bumper and tail lights damaged.",
+  "causeOfLossCode": "COL-VEH-COL",
+  "lossLocation": "Main Street 1, Springfield",
+  "estimatedLossAmount": 4500,
+  "parties": [
+    { "role": "Claimant", "type": "Person", "firstName": "Ada", "lastName": "Lovelace", "email": "ada@example.test" },
+    { "role": "Witness", "type": "Person", "firstName": "Alan", "lastName": "Turing" }
+  ],
+  "riskObjects": [
+    { "assetType": "Vehicle", "assetDescription": "Blue hatchback, plate AB-123", "damageDescription": "Rear bumper", "isPrimary": true }
+  ]
+}
+
+### A request-level rule break: 422 with the S10.4 body (future date, short description); nothing is saved
+POST {{baseUrl}}/api/claims
+Authorization: Bearer {{handler.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "lossDate": "{{$datetime iso8601 2 d}}", "lossDescription": "too short", "causeOfLossCode": "COL-VEH-COL" }
+
+### Claim list: filters status, dateFrom, dateTo, assignedHandlerId, causeOfLossCode, policyId, search
+GET {{baseUrl}}/api/claims?status=Draft&status=Open&search={{fnol.response.body.$.claimNumber}}&page=1&pageSize=20
+Authorization: Bearer {{handler.response.body.$.accessToken}}
+
+### Pre-flight: what can this claim move to, and what blocks it
+GET {{baseUrl}}/api/claims/{{fnol.response.body.$.claimId}}/transitions
+Authorization: Bearer {{handler.response.body.$.accessToken}}
+
+### Draft → Open
+PUT {{baseUrl}}/api/claims/{{fnol.response.body.$.claimId}}/status
+Authorization: Bearer {{handler.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "targetStatus": "Open", "acknowledgeWarnings": true }
+
+### Reserve: 50,000 Indemnity needs a supervisor (PendingApproval)
+# @name reserve
+POST {{baseUrl}}/api/claims/{{fnol.response.body.$.claimId}}/reserves
+Authorization: Bearer {{handler.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "component": "Indemnity", "transactionType": "Add", "amount": 50000, "changeReason": "Initial estimate from the repair quote" }
+
+### handler1 can't approve: 403
+POST {{baseUrl}}/api/claims/{{fnol.response.body.$.claimId}}/reserves/{{reserve.response.body.$.transactionId}}/approve
+Authorization: Bearer {{handler.response.body.$.accessToken}}
+
+### supervisor1 approves: the GL posting job is enqueued
+POST {{baseUrl}}/api/claims/{{fnol.response.body.$.claimId}}/reserves/{{reserve.response.body.$.transactionId}}/approve
+Authorization: Bearer {{supervisor.response.body.$.accessToken}}
+
+### Reserves: balances and history (postingStatus becomes Posted within seconds)
+GET {{baseUrl}}/api/claims/{{fnol.response.body.$.claimId}}/reserves
+Authorization: Bearer {{handler.response.body.$.accessToken}}
+
+### A small expense reserve is auto-approved (≤ 10,000) and posted straight away
+POST {{baseUrl}}/api/claims/{{fnol.response.body.$.claimId}}/reserves
+Authorization: Bearer {{handler.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "component": "Expense", "transactionType": "Add", "amount": 750, "changeReason": "Assessor fee" }
+
+### Upload a document (multipart). Allowed: PDF, JPEG, PNG, DOCX, XLSX, TXT, CSV; at most 50 MB
+POST {{baseUrl}}/api/claims/{{fnol.response.body.$.claimId}}/documents
+Authorization: Bearer {{handler.response.body.$.accessToken}}
+Content-Type: multipart/form-data; boundary=DemoBoundary
+
+--DemoBoundary
+Content-Disposition: form-data; name="documentType"
+
+Police report
+--DemoBoundary
+Content-Disposition: form-data; name="file"; filename="police-report.txt"
+Content-Type: text/plain
+
+Police report 2026/1142: rear-end collision, no injuries.
+--DemoBoundary--
+
+### Documents with fresh download links (1 hour)
+GET {{baseUrl}}/api/claims/{{fnol.response.body.$.claimId}}/documents
+Authorization: Bearer {{handler.response.body.$.accessToken}}
+
+### Audit log, newest first (GL_POSTING_SIMULATED appears once the job has run)
+GET {{baseUrl}}/api/claims/{{fnol.response.body.$.claimId}}/audit?page=1&pageSize=50
+Authorization: Bearer {{handler.response.body.$.accessToken}}
+
+### Close: open reserve balances need a justification (CC-04)
+PUT {{baseUrl}}/api/claims/{{fnol.response.body.$.claimId}}/status
+Authorization: Bearer {{handler.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "targetStatus": "Closed", "closureJustification": "Repair paid by the garage; reserve kept for the subrogation review." }
+
+### Reopen: supervisor or above, with a reason; the claim goes straight back to Open
+PUT {{baseUrl}}/api/claims/{{fnol.response.body.$.claimId}}/status
+Authorization: Bearer {{supervisor.response.body.$.accessToken}}
+Content-Type: application/json
+
+{ "targetStatus": "Reopened", "reason": "A new invoice arrived" }
+
+### Full claim detail: parties, risk objects, issues, reserves, documents, recent audit entries
+GET {{baseUrl}}/api/claims/{{fnol.response.body.$.claimId}}
+Authorization: Bearer {{handler.response.body.$.accessToken}}
