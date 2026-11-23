@@ -5,7 +5,7 @@ _Status: revision 4 (2026-11-22). Each entry gives the issue, its source (S = Fu
 ## D-00 Precedence rule
 The **spec (FRS) wins on business rules**. The **brief wins on stack, architecture, deliverables and deployment**. Where the brief adds an endpoint, field or entity the spec lacks, we add it. Real conflicts are resolved below.
 
-## Decision register (D-01…D-62)
+## Decision register (D-01…D-63)
 
 | # | Issue | Source | Resolution |
 |---|---|---|---|
@@ -71,6 +71,7 @@ The **spec (FRS) wins on business rules**. The **brief wins on stack, architectu
 | D-60 | Azure SQL authentication | B2.3, B3.8, D-57 | **Microsoft Entra-only authentication, no SQL passwords** (proposed as option 6a; awaiting your confirmation, and switching to a SQL admin login is a small Bicep change). The SQL admin is an Entra group containing you and the GitHub OIDC identity. Migrations run from the pipeline as that identity (`Authentication=Active Directory Default` over the `az login` session). The API connects with its **system-assigned managed identity** (`Authentication=Active Directory Managed Identity`), mapped to a contained user by `db/scripts/app-user-azure.sql` |
 | D-61 | Frontend configuration per environment | B3.8, S11.4 | **Runtime config, not build-time `environment.ts`:** `public/app-config.json` (`apiBaseUrl`) is fetched and validated before bootstrap, and `deploy.yml` overwrites it with the App Service URL. One build artifact serves every environment, and the URL isn't known until Bicep has run. SWA serves it with `cache-control: no-store` |
 | D-62 | Least-privilege application role | S14.2, D-39, D-57 | Role `claims_app`: SELECT/INSERT/UPDATE/DELETE on schema dbo, **DENY UPDATE, DELETE on ClaimAuditLog**, no DDL on dbo. Hangfire installs and upgrades its own tables at startup (D-39), so the role gets `CREATE TABLE` plus ALTER on schema **HangFire only** (creating a table needs ALTER on the target schema, which dbo doesn't grant). The alternative, `db_ddladmin`, would let the app alter or drop the audit log |
+| D-63 | Pipeline identity permissions (least privilege) | B3.8, D-60, D-62 | *Your decision.* The GitHub OIDC service principal `claims7316-github-oidc` has **no client secret** and holds two role assignments, both scoped to `rg-claims-assessment` only: **Contributor**, plus **Role Based Access Control Administrator with an ABAC condition**. The condition allows creating and deleting role assignments only for **Key Vault Secrets User** (`4633458b-…`), which is the one assignment the Bicep template makes (API managed identity → Key Vault). So the pipeline can deploy the resources but cannot grant itself or anyone else Owner, Contributor or data roles. Federated credentials accept tokens only from `repo:chokeberry20/claims-module:environment:production` and `…:pull_request`. Database rights come from membership of the SQL Entra admin group (needed for migrations and for creating the API's database user) |
 
 **D-41 Hangfire dashboard protection, details:**
 - A custom `BasicAuthDashboardFilter : IDashboardAuthorizationFilter` parses the `Authorization: Basic` header and compares the credentials in constant time (`CryptographicOperations.FixedTimeEquals`).
