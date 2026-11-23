@@ -16,8 +16,8 @@ using Microsoft.Extensions.Logging;
 namespace ClaimsModule.Application.Common.Behaviours;
 
 // Pipeline order (outermost first), registered in DependencyInjection.AddApplication:
-//   Logging → Validation → Authorization → Transaction (commands) → Idempotency (commands) → handler.
-// Validation and authorization run before any database work. Idempotency runs inside the
+//   Logging → Authorization → Validation → Transaction (commands) → Idempotency (commands) → handler.
+// Authorization runs before validation (async validators touch the database). Idempotency runs inside the
 // transaction, so the stored result commits atomically with the command's changes.
 
 /// <summary>Logs every request with its duration and outcome (brief §6.2 structured logging).</summary>

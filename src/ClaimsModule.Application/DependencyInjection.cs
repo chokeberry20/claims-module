@@ -23,12 +23,15 @@ public static class DependencyInjection
         {
             config.RegisterServicesFromAssembly(typeof(AssemblyReference).Assembly);
             config.AddOpenBehavior(typeof(LoggingBehaviour<,>));
-            config.AddOpenBehavior(typeof(ValidationBehaviour<,>));
+            // Authorization before Validation: async validators query the database, and an anonymous
+            // or under-privileged caller must not reach them (nor learn which codes or policies exist).
             config.AddOpenBehavior(typeof(AuthorizationBehaviour<,>));
+            config.AddOpenBehavior(typeof(ValidationBehaviour<,>));
             config.AddOpenBehavior(typeof(TransactionBehaviour<,>));
             config.AddOpenBehavior(typeof(IdempotencyBehaviour<,>));
         });
 
+        services.AddScoped<Claims.ClaimValidationContextBuilder>();
         services.AddAutoMapper(_ => { }, typeof(AssemblyReference).Assembly);
         services.AddValidatorsFromAssembly(typeof(AssemblyReference).Assembly, includeInternalTypes: true);
         services.Replace(ServiceDescriptor.Scoped<IDomainEventDispatcher, MediatorDomainEventDispatcher>());
