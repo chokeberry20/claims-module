@@ -34,6 +34,7 @@ internal sealed class ApplicationHost : IAsyncDisposable
         services.AddSingleton<ICorrelationContext>(Correlation);
         services.AddPersistence(db.ConnectionString);
         services.AddApplication();
+        services.AddSingleton<IUserDirectory>(new InMemoryUserDirectory([Handler1, Handler2, Supervisor1, Supervisor2, Manager1]));
         configure?.Invoke(services);
         _root = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
     }
@@ -96,4 +97,13 @@ internal sealed class ApplicationHost : IAsyncDisposable
     public static Action<IServiceCollection> Replace<TService>(TService instance)
         where TService : class =>
         services => services.Replace(ServiceDescriptor.Singleton(instance));
+}
+
+/// <summary>The test user directory: the known actors above.</summary>
+internal sealed class InMemoryUserDirectory(IEnumerable<Actor> actors) : IUserDirectory
+{
+    private readonly Dictionary<Guid, DirectoryUser> _users = actors.ToDictionary(a => a.UserId, a => new DirectoryUser(a.UserId, a.DisplayName, a.Role));
+
+    public Task<DirectoryUser?> FindAsync(Guid userId, CancellationToken cancellationToken) =>
+        Task.FromResult(_users.GetValueOrDefault(userId));
 }

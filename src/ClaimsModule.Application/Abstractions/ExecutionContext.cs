@@ -28,3 +28,12 @@ public interface ICorrelationContext
 {
     Guid? CorrelationId { get; }
 }
+
+/// <summary>A known user (D-32 demo users). Used to resolve a handler's display name on assignment.</summary>
+public sealed record DirectoryUser(Guid UserId, string DisplayName, UserRole Role);
+
+/// <summary>The user directory (mock, configuration-backed: P4 task 31).</summary>
+public interface IUserDirectory
+{
+    Task<DirectoryUser?> FindAsync(Guid userId, CancellationToken cancellationToken);
+}

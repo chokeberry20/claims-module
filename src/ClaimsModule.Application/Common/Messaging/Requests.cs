@@ -42,3 +42,9 @@ public sealed class RequiresRoleAttribute(UserRole role) : Attribute
 /// </summary>
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]
 public sealed class SystemRequestAttribute : Attribute;
+
+/// <summary>Base for commands that honour the <c>Idempotency-Key</c> header (S10: all writes).</summary>
+public abstract record IdempotentCommand : IIdempotentCommand
+{
+    public string? IdempotencyKey { get; init; }
+}

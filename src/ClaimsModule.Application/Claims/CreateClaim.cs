@@ -18,7 +18,7 @@ public sealed record InitialReserveInput(ReserveComponentType ComponentType, dec
 /// nothing (D-05 layer a). State-level findings are saved on the Draft claim as validation issues
 /// (D-05 layer b).
 /// </summary>
-public sealed record CreateClaimCommand : ICommand<CreateClaimResult>, IIdempotentCommand
+public sealed record CreateClaimCommand : ICommand<CreateClaimResult>, IIdempotentCommand, ILossDetailsInput
 {
     public Guid? PolicyId { get; init; }
     public DateTimeOffset LossDate { get; init; }
@@ -49,32 +49,13 @@ internal sealed class CreateClaimCommandValidator : AbstractValidator<CreateClai
         ICauseOfLossCodeRepository causeCodes,
         IPolicyRepository policies)
     {
-        RuleFor(c => c.LossDate)
-            .NotEqual(default(DateTimeOffset)).WithErrorCode("LOSS_DATE_REQUIRED").WithMessage("Loss date is required.")
-            .Must(date => date <= clock.GetUtcNow() + LossEvent.FutureDateTolerance)
-            .WithErrorCode("LOSS_DATE_IN_FUTURE").WithMessage("Loss date cannot be in the future.");
-
-        RuleFor(c => c.LossDescription)
-            .Must(d => d is not null && d.Trim().Length >= LossEvent.MinDescriptionLength)
-            .WithErrorCode("LOSS_DESCRIPTION_TOO_SHORT").WithMessage("Loss description is required and must be at least 20 characters.")
-            .MaximumLength(4000).WithErrorCode("LOSS_DESCRIPTION_TOO_LONG").WithMessage("Loss description must be at most 4000 characters.");
-
-        RuleFor(c => c.CauseOfLossCode)
-            .MustAsync(async (code, ct) =>
-                !string.IsNullOrWhiteSpace(code) && (await causeCodes.GetByCodeAsync(code.Trim(), ct))?.IsActive == true)
-            .WithErrorCode("CAUSE_OF_LOSS_INVALID").WithMessage("Cause of loss code is not recognised or is inactive.");
+        Include(new LossDetailsValidator(clock, causeCodes));
 
         RuleFor(c => c.PolicyId)
             .MustAsync(async (id, ct) => await policies.GetByIdAsync(id!.Value, ct) is not null)
             .When(c => c.PolicyId is not null)
             .WithErrorCode("POLICY_NOT_FOUND").WithMessage("The selected policy does not exist.");
 
-        RuleFor(c => c.LossLocation).MaximumLength(LossEvent.MaxLocationLength).WithErrorCode("LOSS_LOCATION_TOO_LONG")
-            .WithMessage($"Loss location must be at most {LossEvent.MaxLocationLength} characters.");
-        RuleFor(c => c.EstimatedLossAmount).GreaterThanOrEqualTo(0m).WithErrorCode("ESTIMATED_LOSS_NEGATIVE")
-            .WithMessage("Estimated loss amount cannot be negative.");
-        RuleFor(c => c.PoliceReportNumber).MaximumLength(LossEvent.MaxPoliceReportNumberLength).WithErrorCode("POLICE_REPORT_NUMBER_TOO_LONG")
-            .WithMessage($"Police report number must be at most {LossEvent.MaxPoliceReportNumberLength} characters.");
         RuleFor(c => c.Severity).IsInEnum().WithErrorCode("SEVERITY_INVALID").WithMessage("Severity is not supported.");
         RuleFor(c => c.Notes).MaximumLength(4000).WithErrorCode("NOTES_TOO_LONG").WithMessage("Notes must be at most 4000 characters.");
 
