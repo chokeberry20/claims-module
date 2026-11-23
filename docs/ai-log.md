@@ -446,3 +446,21 @@ Branch `p4-infrastructure` (from `main` = `c163a53`). Build + all tests right be
   - P4 shows done, awaiting review.
   
   While checking, the AI found that PLAN.md line 264 had lost the backslash in the `SQLEXPRESS01` connection string twice (the C-13 heredoc bug, in an older edit). It was restored from a script file written with the Write tool, because the Bash tool also collapsed the backslash in an inline perl expression. The AI's first grep for this was wrong (bad escaping) and reported no problem; the raw bytes (`od -c`) showed otherwise.
+
+## Session 2 (continued), 2026-11-23/24: P5 (API)
+
+**Your P4 review:** accepted, with your own checks (tests 318 + 44 + 301; `/health` all Healthy at `+b9f1c93`; `/hangfire` 401 with a Basic challenge; the vault has exactly two role assignments; every secret has exactly one enabled version). `main` fast-forwarded to `p4-infrastructure` (`921601d`) and pushed; P5 continues on `p5-api`. **Your additions to P5:** filter Hangfire's own SQL dependency telemetry out of App Insights, and explain the missing warm-up log line.
+
+**P5 task 0: telemetry follow-ups (D-71).**
+- **What Azure showed** (Log Analytics, last day): in AppTraces only categories logged after the host started arrive. The earliest line is `Now listening on` (21:20:23). Nothing with the warm-up's category arrived, and neither did the MSAL lines from the first managed-identity token, which is fetched during the warm-up. In AppDependencies, 3,343 of 3,364 SQL calls had no parent operation (Hangfire polling, `sp_getapplock`); 21 were inside requests.
+- **Diagnosis, step by step:**
+  1. A capturing OpenTelemetry log processor in a test host received the warm-up record. So Serilog's forwarding (`writeToProviders`) and the category were fine.
+  2. The real Azure Monitor exporter, pointed at a local fake ingestion endpoint, sent the request log but not the warm-up line, which was logged 0.3 s earlier.
+  3. The record has no trace context, the same as the `Microsoft.Hosting.Lifetime` lines that do arrive, so sampling was ruled out.
+  4. **Control experiment:** with the old `Program.cs` (warm-up before `RunAsync`) the line was sent in 0 of 2 runs. As a hosted service (started by the host, before the web server listens) it was sent. The exporter's internal reason isn't known; the fix rests on the observed difference.
+- **Fixes:** the warm-up runs as a hosted service. Every job run starts its own activity. A processor unmarks SQL activities with no parent as they start, so the exporter never sends them, while SQL inside requests and job runs stays.
+- **AI mistakes in this task:**
+  - **Wrong activity source name.** The AI wrote the filter for `OpenTelemetry.Instrumentation.SqlClient` from memory. The new integration test found no SQL activities under that name. The distro vendors the instrumentation under its own source, `Azure.Monitor.OpenTelemetry.AspNetCore` (operation `….Execute`). That name was already in the AI's first source listing, and it missed it. The test now guards both names.
+  - **Unreliable first probes.** The exporter stores failed batches on disk per instrumentation key and resends them later. Earlier test runs with a dead endpoint had left batches behind, and the AI's fake endpoint at first answered every batch with `itemsReceived: 1`. Results changed from run to run until the exporter's own diagnostics (EventSource) showed "stored offline for retry". The tests now use a fresh key per run and correct item counts.
+  - **Assertions that sampling broke.** The distro's rate-limited sampler doesn't sample the first request after start-up, so "SQL inside a request is recorded" failed every time the tests ran together. The test now repeats the request until one is sampled, and asserts that request SQL follows its request's sampling decision.
+  - One test run hung once and was stopped; it didn't recur in later runs with `--blame-hang-timeout`.

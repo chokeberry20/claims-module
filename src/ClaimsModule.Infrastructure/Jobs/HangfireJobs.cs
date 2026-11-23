@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using ClaimsModule.Application.Abstractions.Jobs;
 using ClaimsModule.Application.Claims;
 using ClaimsModule.Application.Reserves;
@@ -16,12 +17,41 @@ namespace ClaimsModule.Infrastructure.Jobs;
 // The job classes are thin (PLAN §4): each one sends a system command, so the logic and its tests
 // live in Application, and Infrastructure never references Persistence.
 
+/// <summary>
+/// Telemetry for job runs (D-71). Hangfire creates no activities, so each job run starts its own: the
+/// run shows up in App Insights with its SQL calls as children, while Hangfire's own parentless polling
+/// SQL is filtered out by the API host.
+/// </summary>
+public static class JobTelemetry
+{
+    public const string ActivitySourceName = "ClaimsModule.Jobs";
+
+    public static ActivitySource Source { get; } = new(ActivitySourceName);
+
+    public static async Task RunAsync(string name, string? jobId, Func<Task> run)
+    {
+        using var activity = Source.StartActivity($"Job {name}", ActivityKind.Internal);
+        activity?.SetTag("job.name", name);
+        activity?.SetTag("job.id", jobId);
+        try
+        {
+            await run();
+        }
+        catch (Exception ex)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            throw;
+        }
+    }
+}
+
 /// <summary>PostGLReserveChangeJob (S12.1, BR-R-06): posts one approved reserve change. Idempotent (task 26).</summary>
 public sealed class PostGlReserveChangeJob(ISender sender)
 {
     [DisplayName("GL posting {1}")]
     public Task RunAsync(Guid transactionId, string idempotencyKey, PerformContext? context) =>
-        sender.Send(new SimulateGlPostingCommand(transactionId, context?.BackgroundJob.Id ?? "inline"));
+        JobTelemetry.RunAsync("GL posting", context?.BackgroundJob.Id, () =>
+            sender.Send(new SimulateGlPostingCommand(transactionId, context?.BackgroundJob.Id ?? "inline")));
 }
 
 /// <summary>SlaMonitoringJob (S12.2): every 15 minutes.</summary>
@@ -31,7 +61,7 @@ public sealed class SlaMonitoringJob(ISender sender)
     public const string Cron = "*/15 * * * *";
 
     [DisableConcurrentExecution(timeoutInSeconds: 300)]
-    public Task RunAsync() => sender.Send(new RunSlaScanCommand());
+    public Task RunAsync() => JobTelemetry.RunAsync(RecurringJobId, null, () => sender.Send(new RunSlaScanCommand()));
 }
 
 /// <summary>StalePostingSweepJob (task 27a): every 5 minutes, re-enqueues lost GL postings.</summary>
@@ -41,7 +71,7 @@ public sealed class StalePostingSweepJob(ISender sender)
     public const string Cron = "*/5 * * * *";
 
     [DisableConcurrentExecution(timeoutInSeconds: 300)]
-    public Task RunAsync() => sender.Send(new RunStalePostingSweepCommand());
+    public Task RunAsync() => JobTelemetry.RunAsync(RecurringJobId, null, () => sender.Send(new RunStalePostingSweepCommand()));
 }
 
 /// <summary>IJobScheduler on Hangfire: called after commit, so the job never sees uncommitted data.</summary>

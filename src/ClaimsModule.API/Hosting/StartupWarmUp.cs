@@ -33,6 +33,19 @@ internal static partial class StartupWarmUp
         }
     }
 
+    /// <summary>
+    /// Runs the warm-up as the host starts, not before <c>RunAsync</c> (P5): App Insights never received
+    /// the line when it was logged before the host started (the OpenTelemetry pipeline saw it, the Azure
+    /// Monitor exporter didn't send it), while the host's own start-up lines always arrived. Hosted
+    /// services start before the web server listens, so the app is still warm before the first request.
+    /// </summary>
+    internal sealed class HostedService(IServiceProvider services, IConfiguration configuration, ILogger<HostedService> logger) : IHostedService
+    {
+        public Task StartAsync(CancellationToken cancellationToken) => RunAsync(services, configuration, logger);
+
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
     [LoggerMessage(Level = LogLevel.Information, Message = "Startup warm-up: database health {Status} in {ElapsedMs:0} ms")]
     private static partial void LogWarmUp(ILogger logger, HealthStatus status, double elapsedMs);
 

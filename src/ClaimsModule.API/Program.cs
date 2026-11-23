@@ -1,5 +1,4 @@
-using Azure.Monitor.OpenTelemetry.AspNetCore;
-using Hangfire;
+﻿using Hangfire;
 using ClaimsModule.Infrastructure.Jobs;
 using ClaimsModule.Infrastructure;
 using ClaimsModule.Application.Abstractions.Storage;
@@ -23,13 +22,8 @@ builder.Host.UseSerilog(
         .WriteTo.Console(new RenderedCompactJsonFormatter()),
     writeToProviders: true);
 
-// Azure Monitor OpenTelemetry (P4, your decision; not the classic App Insights SDK): requests,
-// dependencies (SQL, HTTP, Blob) and logs go to App Insights when its connection string is set,
-// which the Bicep template does in Azure. Locally and in tests it is off.
-if (!string.IsNullOrWhiteSpace(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
-{
-    builder.Services.AddOpenTelemetry().UseAzureMonitor();
-}
+// Azure Monitor OpenTelemetry when the App Insights connection string is set (Azure only); D-71.
+builder.Services.AddClaimsTelemetry(builder.Configuration);
 
 var connectionString = builder.Configuration.GetConnectionString("ClaimsDb");
 if (string.IsNullOrWhiteSpace(connectionString))
@@ -42,6 +36,10 @@ builder.Services.AddClaimsHosting(builder.Configuration, builder.Environment);
 builder.Services.AddPersistence(connectionString);
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure();
+
+// Warm the managed-identity token, SQL connection and EF model as the host starts, before the
+// server listens (D-65, P3 incident). Registered before the Hangfire server, so it runs first.
+builder.Services.AddHostedService<StartupWarmUp.HostedService>();
 
 // Hangfire (P4 task 30): SQL Server storage in the HangFire schema; the server can be switched off (tests).
 var jobsOptions = builder.Configuration.GetSection(JobsOptions.SectionName).Get<JobsOptions>() ?? new JobsOptions();
@@ -118,9 +116,6 @@ if (jobsOptions.ServerEnabled)
 {
     JobsRegistration.RegisterRecurringJobs(app.Services.GetRequiredService<Hangfire.IRecurringJobManager>());
 }
-
-// Warm the managed-identity token, SQL connection and EF model before serving (D-65, P3 incident).
-await StartupWarmUp.RunAsync(app.Services, app.Configuration, app.Logger);
 
 await app.RunAsync();
 
