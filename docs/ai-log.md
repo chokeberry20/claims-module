@@ -390,3 +390,9 @@ The guard test is proven to catch a self-referential map.
   - 3 warm-up tests: it runs, it never fails startup and stays bounded on an unreachable database, and it can be switched off;
   - the liveness test checks the version;
   - Bicep build, lint and what-if are clean.
+- **Redeploy, run 45233506838 (`--ref p3-application`, `deploy_infra=true`, `5a9ef94`): green.**
+  - CI first: run on `5a9ef94` green, 19 + 318 + 272 tests.
+  - Bicep applied `WEBSITE_RUN_FROM_PACKAGE=1`, confirmed with `az webapp config appsettings list`.
+  - **Smoke test 7 of 7, after** `/health/live` reported `1.0.0+5a9ef94…`.
+  - Afterwards `/health` returned 200 in 0.24 s (158 ms of checks). `/health` writes the version's `+` as `+`, which is why `smoke.sh` matches on the SHA alone.
+- `main` fast-forwarded to `p3-application` (your approval).
