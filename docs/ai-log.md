@@ -269,3 +269,16 @@ Branch `p2_5-walking-skeleton` (from `main` = `5c7eac9`).
 - **Bicep not compiled locally.** `az` is still not installed. The AI tried to download the official standalone Bicep CLI into its scratchpad; the permission system refused it, and the AI did not work around the refusal. Compilation and lint are a job in `ci.yml` instead (`az` is preinstalled on GitHub runners).
 - The commit script now also runs `ng build` and `ng test` and gates the commit on them, and it can commit a given path list, so each task is its own commit.
 - Test counts in the 17c commit row (146) include the 17f test file, which was in the working tree but committed one commit later.
+
+**Session 2 (continued), 2026-11-23: push, CI, Azure identity setup, 17f retries.**
+- **Your decisions:** push all five branches (`main` first), after you checked the full history yourself. Region North Europe, prefix `claims7316`, resource group `rg-claims-assessment`, SQL auth option (a) Entra-only (confirms D-60). Run the setup with az and gh, showing each command first.
+- **Tooling finding:** `az` and `gh` were installed, but the AI's process started before PATH was updated. You gave the full paths. `az.cmd` cannot be called from Git Bash through a path with spaces (cmd quoting), so Azure commands run from PowerShell.
+- **Bicep compiled locally:** `az bicep build` and `az bicep lint` (az 2.93.0) passed, with no warnings.
+- **First CI run (45105296255, push of `p2_5-walking-skeleton`): green.** .NET 306 + 146 passed on SQL Server 2022 RTM-CU28 (16.0.4325.4). Angular 13 passed. Bicep build and lint passed. Annotation: `upload-artifact@v4` targets the deprecated Node 20, so it was bumped to upload v7 and download v8 (current majors; their breaking changes don't affect these workflows).
+- **Azure setup done (region-independent):**
+  - the six resource providers registered;
+  - Entra group `claims7316-sql-admins` with you as a member;
+  - app registration `claims7316-github-oidc` with a service principal, **no client secret**, federated credentials for `environment:production` and `pull_request`, and the service principal added to the SQL admin group;
+  - GitHub environment `production` with 7 variables and no secrets.
+- **Azure SQL Basic is restricted in North Europe for this subscription.** `list-editions` shows Basic as "Visible", but with the reason "Provisioning is restricted in this region". West Europe and UK South are restricted too. Sweden Central, Germany West Central, France Central and Poland Central report it Available, and B1 Linux is offered in all four. The resource group and its role assignments wait for your region decision.
+- **17f retry strategy:** `EnableRetryOnFailure` is on in `AddPersistence`, and `ExecuteInTransactionAsync` runs inside the execution strategy. A replay clears the change tracker and the collected events. 6 new tests, including two replay tests with a strategy that treats a simulated exception as transient. Four mutations were each caught: no strategy wrapper (4 tests fail), no change-tracker clear (1), no event clear (1), no EnableRetryOnFailure (2).
