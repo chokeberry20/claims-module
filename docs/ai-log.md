@@ -251,8 +251,11 @@ Branch `p2_5-walking-skeleton` (from `main` = `5c7eac9`).
 | Task | Commit | build | tests | Result |
 |---|---|---|---|---|
 | 17a: minimal API host | `8f0198e` | 0 / 0 | 306 + 132 passed | Serilog JSON logs, Swagger in all environments, CORS, `/health/live`, `/health` (DB + migrations: 4 applied / 0 pending), fail-fast config checks. Verified with `dotnet run` against the dev DB: /health Healthy, Swagger 200, CORS preflight from `localhost:4200` allowed |
-| 17b: Angular shell | — | — | — | **Blocked: drive C: is full** (see below) |
-| 17c–17f: Azure, CI/CD | — | — | — | Need your Azure and GitHub setup (list in the session reply) |
+| 17b: Angular shell | `76083f6` | 0 / 0 | 306 + 132 passed; ng 13 passed | Angular 22.3 (standalone, zoneless, Vitest), Material 3 custom palette, toolbar, lazy home route, footer health ping, runtime `app-config.json` (D-61). Verified live: API on :5180 + `ng serve`, cross-origin `/health` allowed. Mutation: ignoring the 503 body fails 1 test |
+| 17c: Bicep | `30721ad` | 0 / 0 | 306 + 146; ng 13 | `infra/main.bicep` (D-60). **Not compiled locally** (see below); `ci.yml` compiles and lints it |
+| 17f: least-privilege DB role | `e3b6daa` | 0 / 0 | 306 + 146; ng 13 | `app-role.sql` (D-62) verified by 14 impersonation tests on SQL Express; `app-user-azure.sql` unverified until Azure. Mutation: dropping the DENY fails 2 tests. The retry-strategy part of 17f is still open |
+| 17e: smoke script | `054f84a` | 0 / 0 | 306 + 146; ng 13 | Verified locally: 7/7 checks pass; disallowed origin / missing frontend fails 3; API down times out with exit 1. Two bugs found by the negative run and fixed before commit: a doubled `000000` status, and a failed fetch reporting the previous body |
+| 17d: ci.yml + deploy.yml | `5d29e77` | 0 / 0 | 306 + 146; ng 13 | EF `has-pending-model-changes` step verified locally. Not yet run on GitHub or Azure |
 
 **Tooling findings:**
 - Node is **26.13.1**. Angular CLI **22.3.0** (latest) requires `^22.22.3 || ^24.15.0 || >=26.0.0`, so it is supported. The global `ng` is 17.0.5, which is unsupported on Node 26 and not used; the CLI runs through `npx @angular/cli@22.3.0`.
@@ -260,4 +263,9 @@ Branch `p2_5-walking-skeleton` (from `main` = `5c7eac9`).
 
 **Incidents:**
 1. **A wrong commit message, caught and fixed by the AI.** The Write tool refused to overwrite the commit-message file, because it had been changed by a shell heredoc since its last read. The verify script then committed 17a with the **previous** commit's message ("test(p2): deterministic HOLDLOCK…"). The AI saw it in the script output and amended the message only (tree hash checked as unchanged; local, unpushed). It also added a guard to the script: it refuses to commit when the message subject equals HEAD's subject.
-2. **Disk full (ENOSPC).** `ng new` failed during `npm install`: drive C: had **1.7 MB free of 118 GB**. The AI deleted the partial scaffold `web/` it had just created (197 MB of node_modules). About **198 MB** is free now. Nothing outside the AI's own artifacts was touched. P2.5 is paused, because npm (about 0.5 GB), the Azure CLI, builds and test databases need several GB.
+
+**Session 2 (continued), 2026-11-23: P2.5 without Azure.** Your instruction: Azure comes later; do 17b locally, write and validate the Bicep, write the workflows and push only after you approve the branch list, write 17e/17f unverified until Azure.
+- Disk: about 3.9 GB free on C: at the start of this step (you freed space).
+- **Bicep not compiled locally.** `az` is still not installed. The AI tried to download the official standalone Bicep CLI into its scratchpad; the permission system refused it, and the AI did not work around the refusal. Compilation and lint are a job in `ci.yml` instead (`az` is preinstalled on GitHub runners).
+- The commit script now also runs `ng build` and `ng test` and gates the commit on them, and it can commit a given path list, so each task is its own commit.
+- Test counts in the 17c commit row (146) include the 17f test file, which was in the working tree but committed one commit later.
