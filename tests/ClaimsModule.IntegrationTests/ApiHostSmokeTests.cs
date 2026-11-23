@@ -4,6 +4,9 @@ using System.Text.Json;
 using ClaimsModule.IntegrationTests.Api;
 using ClaimsModule.IntegrationTests.Persistence;
 using Microsoft.Data.SqlClient;
+using ClaimsModule.API.Hosting;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace ClaimsModule.IntegrationTests;
@@ -97,11 +100,32 @@ public sealed class ApiHostSmokeTests(SqlServerDatabaseFixture db)
     }
 
     [Fact]
-    public async Task Startup_fails_fast_when_tenant_does_not_match_the_seeded_organisation()
+    public void Startup_fails_fast_when_tenant_does_not_match_the_seeded_organisation()
     {
-        await using var factory = new ClaimsApiFactory(db, new Dictionary<string, string?> { ["Tenancy:OrganisationId"] = Guid.NewGuid().ToString() });
+        // The host's own registrations, and the startup validator that ValidateOnStart registers: the
+        // same check the host runs in StartAsync. Not via WebApplicationFactory.CreateClient(): when
+        // startup throws there, the app's entry-point thread disposes the service provider while the
+        // factory still reads it, and under CPU load the test saw ObjectDisposedException instead
+        // (flaky; reproduced in 1 of 3 runs with every core busy, see ai-log).
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Tenancy:OrganisationId"] = Guid.NewGuid().ToString() })
+            .Build();
+        using var services = new ServiceCollection().AddClaimsHosting(configuration).BuildServiceProvider();
 
-        Should.Throw<OptionsValidationException>(() => factory.CreateClient()).Message.ShouldContain("Tenancy:OrganisationId");
+        var validator = services.GetRequiredService<IStartupValidator>();
+
+        Should.Throw<OptionsValidationException>(validator.Validate).Message.ShouldContain("Tenancy:OrganisationId");
+    }
+
+    [Fact]
+    public void Startup_validation_passes_for_the_seeded_organisation()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Tenancy:OrganisationId"] = SqlServerDatabaseFixture.OrganisationId.ToString() })
+            .Build();
+        using var services = new ServiceCollection().AddClaimsHosting(configuration).BuildServiceProvider();
+
+        Should.NotThrow(services.GetRequiredService<IStartupValidator>().Validate);
     }
 
     [Fact]
