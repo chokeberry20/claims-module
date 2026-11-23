@@ -243,3 +243,21 @@ Branch `p2-persistence` (from `p1-domain` = `main` at `91037c8`). Every commit w
   - The required fix is the same; only where the error appears differs. D-56 and P2.5 task 17f record the verified behaviour and the replay caveat (the retried unit must be the whole command, with a fresh context).
   - *AI correction:* the AI's first wording of D-56 in this session repeated "BeginTransaction throws" before verifying. The probe disproved it, and the wording was fixed before commit.
 - `main` was fast-forwarded to `p2-persistence`.
+
+## Session 2 (continued): 2026-11-23: P2.5 walking skeleton, started
+
+Branch `p2_5-walking-skeleton` (from `main` = `5c7eac9`).
+
+| Task | Commit | build | tests | Result |
+|---|---|---|---|---|
+| 17a: minimal API host | `8f0198e` | 0 / 0 | 306 + 132 passed | Serilog JSON logs, Swagger in all environments, CORS, `/health/live`, `/health` (DB + migrations: 4 applied / 0 pending), fail-fast config checks. Verified with `dotnet run` against the dev DB: /health Healthy, Swagger 200, CORS preflight from `localhost:4200` allowed |
+| 17b: Angular shell | — | — | — | **Blocked: drive C: is full** (see below) |
+| 17c–17f: Azure, CI/CD | — | — | — | Need your Azure and GitHub setup (list in the session reply) |
+
+**Tooling findings:**
+- Node is **26.13.1**. Angular CLI **22.3.0** (latest) requires `^22.22.3 || ^24.15.0 || >=26.0.0`, so it is supported. The global `ng` is 17.0.5, which is unsupported on Node 26 and not used; the CLI runs through `npx @angular/cli@22.3.0`.
+- Azure CLI (`az`, with Bicep) and GitHub CLI (`gh`) are **not installed**.
+
+**Incidents:**
+1. **A wrong commit message, caught and fixed by the AI.** The Write tool refused to overwrite the commit-message file, because it had been changed by a shell heredoc since its last read. The verify script then committed 17a with the **previous** commit's message ("test(p2): deterministic HOLDLOCK…"). The AI saw it in the script output and amended the message only (tree hash checked as unchanged; local, unpushed). It also added a guard to the script: it refuses to commit when the message subject equals HEAD's subject.
+2. **Disk full (ENOSPC).** `ng new` failed during `npm install`: drive C: had **1.7 MB free of 118 GB**. The AI deleted the partial scaffold `web/` it had just created (197 MB of node_modules). About **198 MB** is free now. Nothing outside the AI's own artifacts was touched. P2.5 is paused, because npm (about 0.5 GB), the Azure CLI, builds and test databases need several GB.
