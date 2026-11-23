@@ -141,6 +141,33 @@ public sealed class UnitOfWorkAndRepositoryTests(SqlServerDatabaseFixture db) : 
     }
 
     [Fact]
+    public async Task Concurrent_changes_to_only_a_reserve_transaction_conflict_on_the_component()
+    {
+        // A change to only the child ReserveTransaction must still bump the component root's RowVer
+        // (aggregate-root versioning). Without it both writers commit: found in P3 by the concurrent
+        // GL posting test, which saw two "Posted" outcomes for one transaction.
+        var claim = await SaveAsync(NewClaim());
+        var component = ClaimReserveComponent.Create(claim.Id, ReserveComponentType.Expense);
+        var txn = component.Submit(ReserveTransactionType.Add, 2_000m, "Adjuster fee", _services.Actor, Money.Zero, Now).Transaction;
+        await using (var setup = _services.Scope())
+        {
+            setup.ServiceProvider.GetRequiredService<IReserveComponentRepository>().Add(component);
+            await setup.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync();
+        }
+
+        await using var first = _services.Scope();
+        await using var second = _services.Scope();
+        var a = (await first.ServiceProvider.GetRequiredService<IReserveComponentRepository>().GetByTransactionIdAsync(txn.Id))!;
+        var b = (await second.ServiceProvider.GetRequiredService<IReserveComponentRepository>().GetByTransactionIdAsync(txn.Id))!;
+
+        a.MarkPosted(txn.Id, "job-1", Now).ShouldBeTrue();
+        await first.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync();
+
+        b.MarkPosted(txn.Id, "job-2", Now).ShouldBeTrue(); // b still sees Pending
+        await Should.ThrowAsync<ConcurrencyException>(() => second.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync());
+    }
+
+    [Fact]
     public async Task Reserve_activity_on_the_claim_conflicts_with_a_concurrent_claim_edit()
     {
         var claim = await SaveAsync(NewClaim());

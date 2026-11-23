@@ -207,6 +207,21 @@ public sealed class AuditableEntityInterceptor(TimeProvider clock, ICurrentUser 
             // Marking UpdatedAt modified makes EF issue an UPDATE on the root, which bumps its RowVer.
             claimEntry.Property(ShadowProperties.UpdatedAt).IsModified = true;
         }
+
+        // The same aggregate-root versioning for ClaimReserveComponent: a change to only a
+        // ReserveTransaction (posting, reject, retract, requeue) must still bump the component's
+        // RowVer, or two concurrent writers to the same transaction both commit (found by the
+        // concurrent GL posting test in P3 task 26).
+        var changedComponentIds = context.ChangeTracker.Entries<ReserveTransaction>()
+            .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+            .Select(e => e.Entity.ReserveComponentId)
+            .ToHashSet();
+
+        foreach (var componentEntry in context.ChangeTracker.Entries<ClaimReserveComponent>()
+                     .Where(e => e.State == EntityState.Unchanged && changedComponentIds.Contains(e.Entity.Id)))
+        {
+            componentEntry.Property(ShadowProperties.UpdatedAt).IsModified = true;
+        }
     }
 
     private static bool IsSlaOnlyChange(EntityEntry entry) =>
