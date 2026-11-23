@@ -1,3 +1,4 @@
+using System.Data;
 using System.Linq.Expressions;
 using ClaimsModule.Application.Abstractions;
 using ClaimsModule.Domain.Claims;
@@ -8,6 +9,8 @@ using ClaimsModule.Domain.Reserves;
 using ClaimsModule.Persistence.Conventions;
 using ClaimsModule.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace ClaimsModule.Persistence;
 
@@ -56,11 +59,22 @@ public sealed class ClaimsDbContext : DbContext
         configurationBuilder.Properties<Money>().HaveConversion<MoneyConverter>().HavePrecision(19, 4);
         configurationBuilder.Properties<DateTimeOffset>().HavePrecision(7);
         configurationBuilder.Properties<Enum>().HaveConversion<string>().HaveMaxLength(50);
+
+        // Lets ClaimNumber values appear as function arguments and parameters (ClaimsDbFunctions).
+        configurationBuilder.DefaultTypeMapping<ClaimNumber>().HasConversion<ClaimNumberConverter>();
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ClaimsDbContext).Assembly);
+
+        // CAST(ClaimNumber AS nvarchar(50)): a plain string expression, so Contains → LIKE (S10.1).
+        modelBuilder.HasDbFunction(typeof(ClaimsDbFunctions).GetMethod(nameof(ClaimsDbFunctions.ClaimNumberText))!)
+            .HasTranslation(args => new SqlUnaryExpression(
+                ExpressionType.Convert,
+                args[0],
+                typeof(string),
+                new StringTypeMapping("nvarchar(50)", DbType.String, unicode: true, size: ClaimNumber.MaxLength)));
         ApplyBusinessQueryFilters(modelBuilder);
 
         // The audit log is tenant-scoped but has no soft delete (D-23).

@@ -97,6 +97,23 @@ public sealed class ClaimQueryTests(SqlServerDatabaseFixture db) : IAsyncLifetim
     }
 
     [Fact]
+    public async Task Search_matches_a_partial_claim_number()
+    {
+        // S10.1: "search (partial claim number or client name)".
+        var mine = await CreateAsync(Fnol.Complete(_host.Clock.Now));
+        var other = await CreateAsync(Fnol.Complete(_host.Clock.Now));
+        var digits = mine.ClaimNumber[^7..]; // e.g. "0000142"
+
+        (await MineAsync(new ListClaimsQuery { Search = digits })).Items.Select(i => i.ClaimId).ShouldBe([mine.ClaimId]);
+        (await MineAsync(new ListClaimsQuery { Search = "2026-00" })).Items.Select(i => i.ClaimId)
+            .ShouldBe([mine.ClaimId, other.ClaimId], ignoreOrder: true);
+        (await MineAsync(new ListClaimsQuery { Search = "clm-2026" })).TotalCount.ShouldBe(2); // case-insensitive
+        (await MineAsync(new ListClaimsQuery { Search = mine.ClaimNumber[4..12] })).Items.ShouldContain(i => i.ClaimId == mine.ClaimId); // middle
+        (await MineAsync(new ListClaimsQuery { Search = "CLM-1999" })).TotalCount.ShouldBe(0);
+        (await MineAsync(new ListClaimsQuery { Search = "%" })).TotalCount.ShouldBe(0); // LIKE wildcards are escaped
+    }
+
+    [Fact]
     public async Task Total_reserves_is_the_approved_gross_total()
     {
         var claim = await CreateAsync(Fnol.WithReserve(_host.Clock.Now, 8_000m));

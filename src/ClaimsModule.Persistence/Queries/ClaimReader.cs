@@ -2,6 +2,7 @@ using AutoMapper;
 using ClaimsModule.Application.Claims;
 using ClaimsModule.Domain.Claims;
 using ClaimsModule.Domain.Reserves;
+using ClaimsModule.Persistence.Conventions;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClaimsModule.Persistence.Queries;
@@ -49,11 +50,10 @@ internal sealed class ClaimReader(ClaimsDbContext context, IMapper mapper) : ICl
 
         if (filter.Search is { } search)
         {
-            // ClaimNumber is a value-converted column, so it matches exactly (CLM-YYYY-NNNNNNN); policy
-            // number and client name match as case-insensitive substrings.
-            var number = ClaimNumber.TryParse(search, out var parsed) ? parsed : null;
+            // S10.1: partial claim number, policy number or client name, as case-insensitive substrings.
+            // ClaimNumber is value-converted; ClaimNumberText exposes its stored text to LIKE.
             claims = claims.Where(c =>
-                (number != null && c.ClaimNumber == number)
+                ClaimsDbFunctions.ClaimNumberText(c.ClaimNumber).Contains(search)
                 || (c.PolicyNumber != null && c.PolicyNumber.Contains(search))
                 || (c.ClientName != null && c.ClientName.Contains(search)));
         }
