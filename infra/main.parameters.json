@@ -2,10 +2,10 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
-    "namePrefix": { "value": "claimsdcs" },
-    "staticWebAppLocation": { "value": "westeurope" },
-    "sqlAdminLogin": { "value": "REPLACE-sql-admins-group-name" },
-    "sqlAdminObjectId": { "value": "00000000-0000-0000-0000-000000000000" },
+    "namePrefix": { "value": "claims7316" },
+    "staticWebAppLocation": { "value": "eastus2" },
+    "sqlAdminLogin": { "value": "claims7316-sql-admins" },
+    "sqlAdminObjectId": { "value": "60343560-57e4-43b5-b76d-3060c285f0d0" },
     "sqlAdminPrincipalType": { "value": "Group" }
   }
 }

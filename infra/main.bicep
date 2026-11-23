@@ -14,7 +14,7 @@ param namePrefix string
 @description('Region for everything except the Static Web App.')
 param location string = resourceGroup().location
 
-@description('Static Web Apps is only offered in a few regions; westeurope, eastus2, centralus, westus2 and eastasia are valid.')
+@description('Static Web Apps is only offered in westeurope, eastus2, centralus, westus2 and eastasia. Default eastus2: westeurope is not accepting new customers for this subscription (what-if, 2026-11-23). Only metadata lives there; the site is served from the global edge.')
 @allowed([
   'westeurope'
   'eastus2'
@@ -22,7 +22,7 @@ param location string = resourceGroup().location
   'westus2'
   'eastasia'
 ])
-param staticWebAppLocation string = 'westeurope'
+param staticWebAppLocation string = 'eastus2'
 
 @description('Display name of the Microsoft Entra principal (user or group) that becomes the Azure SQL administrator.')
 param sqlAdminLogin string
@@ -76,6 +76,9 @@ resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   properties: {
     sku: { name: 'PerGB2018' }
     retentionInDays: 30
+    workspaceCapping: {
+      dailyQuotaGb: 1 // cost guard: ingestion stops for the day at 1 GB
+    }
   }
 }
 
