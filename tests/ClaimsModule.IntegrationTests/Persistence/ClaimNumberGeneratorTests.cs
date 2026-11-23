@@ -104,6 +104,69 @@ public sealed class ClaimNumberGeneratorTests(SqlServerDatabaseFixture db)
         }
     }
 
+    // ------------------------------------------------------------------ deterministic lock tests (P2 review)
+
+    /// <summary>
+    /// tx1 allocates a number and keeps its transaction open. tx2 is set to SET LOCK_TIMEOUT 500.
+    /// <list type="bullet">
+    /// <item><see cref="Same_year_allocation_waits_while_another_transaction_holds_the_counter"/>: tx2 allocates in the same year and must time out
+    /// (error 1222), because allocations for one org and year are serialised until commit. This is
+    /// the test the reviewer specified.</item>
+    /// <item><see cref="HOLDLOCK_range_lock_blocks_first_allocation_of_an_adjacent_new_year"/>: tx2 allocates the first number of a different,
+    /// adjacent year that doesn't exist yet. Only a HOLDLOCK key-range lock taken by tx1's first-insert
+    /// MERGE can block that, so this is the deterministic signal that HOLDLOCK is in effect.</item>
+    /// </list>
+    /// </summary>
+    private async Task<int?> Tx2AllocateWhileTx1HoldsAsync(Guid organisationId, int tx1Year, int tx2Year)
+    {
+        var tenant = new TestTenantProvider(organisationId);
+        await using var tx1Context = new ClaimsModule.Persistence.ClaimsDbContext(db.Options(), tenant);
+        await using var tx1 = await tx1Context.Database.BeginTransactionAsync();
+        await new ClaimNumberGenerator(tx1Context, tenant).NextAsync(tx1Year);
+
+        await using var tx2Context = new ClaimsModule.Persistence.ClaimsDbContext(db.Options(), tenant);
+        await using var tx2 = await tx2Context.Database.BeginTransactionAsync();
+        await tx2Context.Database.ExecuteSqlRawAsync("SET LOCK_TIMEOUT 500;");
+        try
+        {
+            var number = await new ClaimNumberGenerator(tx2Context, tenant).NextAsync(tx2Year);
+            return number.Sequence;
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 1222)
+        {
+            return null; // lock request time out period exceeded
+        }
+        finally
+        {
+            await tx1.RollbackAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Same_year_allocation_waits_while_another_transaction_holds_the_counter() =>
+        (await Tx2AllocateWhileTx1HoldsAsync(Guid.NewGuid(), 2401, 2401)).ShouldBeNull("tx2 must wait for tx1's open allocation");
+
+    [Fact]
+    public async Task HOLDLOCK_range_lock_blocks_first_allocation_of_an_adjacent_new_year() =>
+        (await Tx2AllocateWhileTx1HoldsAsync(Guid.NewGuid(), 2402, 2403)).ShouldBeNull(
+            "tx1's HOLDLOCK key-range lock must cover the empty key range, so a first insert there waits");
+
+    [Fact]
+    public async Task First_allocation_of_a_year_holds_key_range_locks()
+    {
+        var tenant = new TestTenantProvider(Guid.NewGuid());
+        await using var context = new ClaimsModule.Persistence.ClaimsDbContext(db.Options(), tenant);
+        await using var transaction = await context.Database.BeginTransactionAsync();
+        await new ClaimNumberGenerator(context, tenant).NextAsync(2404);
+
+        var modes = await context.Database.SqlQueryRaw<string>(
+                "SELECT request_mode AS [Value] FROM sys.dm_tran_locks WHERE request_session_id = @@SPID AND resource_type = 'KEY'")
+            .ToListAsync();
+
+        modes.ShouldContain(m => m.StartsWith("Range", StringComparison.Ordinal), $"KEY lock modes held: {string.Join(", ", modes)}");
+        await transaction.RollbackAsync();
+    }
+
     [Fact]
     public async Task Rolled_back_allocation_leaves_no_gap()
     {

@@ -232,7 +232,7 @@ docker-compose.yml  [Optional, verified in CI only, or dropped] sqlserver:2022, 
 3. **Audit atomicity versus Hangfire dual-write.**
    - Audit entries are written in the same transaction through pre-commit handlers.
    - Jobs are enqueued after commit. If an enqueue is lost, the transaction stays `PostingStatus=Pending` with no job.
-   - A small recurring "re-enqueue stale Pending postings" sweep covers this, inside the SLA job or a separate job.
+   - A recurring "re-enqueue stale Pending postings" sweep covers this (P3 task 27a, **core scope**, D-56).
 4. **GL job idempotency under retries.** In one DB transaction, a conditional `UPDATE ReserveHistory SET PostingStatus='Posted' … WHERE Id=@id AND PostingStatus<>'Posted'` runs first. The audit insert happens only if 1 row was affected. A unique index on `IdempotencyKey` backs this up. Re-running the job is a no-op, and so is running it concurrently.
 5. **Final-failure detection** relies on a Hangfire state filter. Retries are set to 3 attempts with short delays (configurable) so the demo doesn't wait hours. An optional `GlPosting:SimulatedFailureRate` lets us show the Failed state and the retry.
 6. **Cross-aggregate concurrency.** The $10M aggregate limit and CC-01 span two aggregates. Touching the Claim RowVer serialises them, and a `DbUpdateConcurrencyException` becomes a 409.
@@ -302,7 +302,7 @@ Each task ends with a **Verify** check. Commit after each task (git init in P0).
     7. Run the SWA deploy action with the Angular dist.
     *Verify:* a green run. Public Swagger shows up, the SWA loads and its footer shows the API healthy, and Azure SQL has the seed rows.
 17e. Add a smoke-test script `scripts/smoke.sh` (curl `/health`, `/api/reference/cause-of-loss-codes` once it exists). Run it as the last step of `deploy.yml`.
-17f. **Azure SQL hardening from P2** (D-56, D-57): create a contained application DB user with least privilege and `DENY UPDATE, DELETE ON dbo.ClaimAuditLog`, the migration bundle runs as a separate admin identity, and the EF retrying execution strategy is on, with explicit transactions wrapped in `CreateExecutionStrategy().ExecuteAsync`. *Verify:* the app user can't UPDATE ClaimAuditLog on Azure, and the integration tests still pass with the retry strategy enabled.
+17f. **Azure SQL hardening from P2** (D-56, D-57): create a contained application DB user with least privilege and `DENY UPDATE, DELETE ON dbo.ClaimAuditLog`, the migration bundle runs as a separate admin identity, and the EF retrying execution strategy is on (`EnableRetryOnFailure`). **That makes the first EF operation inside the explicit transaction in `UnitOfWork.ExecuteInTransactionAsync` throw** (`BeginTransactionAsync` itself succeeds; verified), so wrap it in `CreateExecutionStrategy().ExecuteAsync(...)`, with the retried unit being the whole command (a fresh scope and context per attempt, `verifySucceeded` for commit failures; see D-56). *Verify:* the app user can't UPDATE ClaimAuditLog on Azure. The integration tests pass with the retry strategy enabled, including a test that `ExecuteInTransactionAsync` works under `EnableRetryOnFailure` (it would throw without the wrapper).
 
 **Incremental deployment rule:** every phase from P3 onward ends with a **"Deploy & smoke"** task. Run `deploy.yml`, run the smoke script, extend it with that phase's endpoints or pages, and record the result in ai-log.
 
@@ -318,7 +318,17 @@ Each task ends with a **Verify** check. Commit after each task (git init in P0).
 25. Reserve commands and queries: submit, approve, reject, retract, retry, get, override. *Verify:* tests for each BR-R rule.
 25a. **Reserve command handlers enforce the claim-level preconditions** (your P1 review): every reserve-changing command (submit/open/adjust/reverse, approve, reject, retract, retry-posting, and the optional initial reserve inside `CreateClaimCommand`) loads the Claim and calls `claim.EnsureReserveChangesAllowed()` *in the handler*, before touching the reserve aggregate. That enforces **BR-C-06** (a policy must be linked: 422 `RESERVES_REQUIRE_POLICY`) and **D-20** (claim status must be Draft, Open, UnderInvestigation or PendingPayment: 422 `RESERVES_NOT_ALLOWED_IN_STATUS`). The handler also calls `claim.RecordReserveActivity(...)`, so the claim row version changes. *Verify:* handler tests for each command: no policy gives 422 RESERVES_REQUIRE_POLICY; Closed and Withdrawn claims give 422 RESERVES_NOT_ALLOWED_IN_STATUS; the allowed statuses succeed. An FNOL with an initial reserve and no policy is rejected with nothing saved.
 26. `SimulateGlPostingCommand` and `MarkGlPostingFailedCommand`, idempotent. *Verify:* running twice gives exactly 1 audit row, and so do two concurrent runs.
-27. `RunSlaScanCommand` (with the 24h dedupe) and the stale-posting re-enqueue sweep. *Verify:* tests using a fake TimeProvider.
+27. `RunSlaScanCommand` (with the 24h dedupe). *Verify:* tests using a fake TimeProvider.
+27a. **Stale-Pending GL posting sweep, core scope, not Stretch** (your P2 review; D-56). Without it, a lost after-commit enqueue leaves `PostingStatus = Pending` forever, and the D-28 retry can't help because it only accepts `Failed`. Behaviour:
+    - A recurring Hangfire job (`StalePostingSweepJob`, every 5 minutes) finds approved transactions (`AutoApproved`/`Approved`) where `PostingStatus = Pending` and `ApprovedAt` is older than a configurable threshold (`GlPosting:StalePendingAfter`, default 10 minutes).
+    - It re-enqueues `PostGLReserveChangeJob` with the **same** idempotency key.
+    - It is safe to over-enqueue, because the job is idempotent (task 26): a duplicate run is a no-op.
+    - Each re-enqueue is logged, and the sweep stores `PostingLastEnqueuedAt` on the transaction, so one transaction isn't re-enqueued every cycle.
+
+    *Verify:*
+    - Transactions approved more than the threshold ago and still Pending are re-enqueued. Fresh, Posted, Failed and non-approved transactions are not.
+    - A second sweep within the threshold doesn't re-enqueue again.
+    - Losing the after-commit enqueue end to end (dispatcher throws) still ends with `PostingStatus = Posted` after the sweep and one job run.
 28. Domain-event → audit handlers for every S14.1 event. *Verify:* a test asserts that each command emits the expected event types.
 28a. Deploy & smoke. API endpoints arrive in P5, so for now this checks that migrations for any new tables apply on Azure.
 
@@ -368,7 +378,7 @@ Each task ends with a **Verify** check. Commit after each task (git init in P0).
 48. Detail polish: Overview tab (editable notes, severity, estimated amount), Parties tab (add/remove, last-claimant disabled), close pre-flight checklist from `/transitions`, waive-critical dialog (supervisor+; NO_CLAIMANT has no waive button), GL retry button, copyable claim number, skeleton loaders.
 49. Deploy & smoke.
 
-**Stretch backlog:** NetArchTest (3), magic bytes, HMAC local URLs, User Delegation SAS (29s), the stale-posting re-enqueue sweep (from 27 if time is short), risk-object edit endpoints in the UI.
+**Stretch backlog:** NetArchTest (3), magic bytes, HMAC local URLs, User Delegation SAS (29s), risk-object edit endpoints in the UI.
 
 **Priority if time runs short** (B8.3, adjusted to your review):
 1. P0–P2, then the P2.5 walking skeleton. It stays deployed from here on.

@@ -225,3 +225,21 @@ Branch `p2-persistence` (from `p1-domain` = `main` at `91037c8`). Every commit w
 - Read-side query services (list/detail/audit DTOs). They need the Application DTOs and AutoMapper profiles, so they arrive with P3 tasks 19 and 21.
 - The MediatR implementation of `IDomainEventDispatcher` (P3).
 - The idempotency middleware that uses `IdempotencyRecords` (P5).
+
+### Your P2 review (accepted) and follow-ups (2026-11-23)
+- You re-ran build and tests (306 + 124 green) and checked the dev database yourself: column types, defaults, compat 160, and the trigger blocking UPDATE/DELETE.
+- **Follow-up 1: a deterministic HOLDLOCK test.**
+  - **Your design:** tx1 allocates and keeps its transaction open; tx2, with `SET LOCK_TIMEOUT 500`, allocates the same year and must time out.
+  - **What the AI found:** the AI predicted this design can't detect a missing HOLDLOCK. Once tx1 has *inserted* the counter row, tx2 blocks on that row's X lock under any isolation level. Implemented as specified, it passed **both** with and without HOLDLOCK (3 runs each), so the prediction was confirmed. The test is kept, renamed `Same_year_allocation_waits_while_another_transaction_holds_the_counter`, because it does prove serialisation.
+  - **What detects it deterministically**, added as two tests:
+    - (a) After tx1's first-of-year MERGE, `sys.dm_tran_locks` shows `Range*` key locks for its session.
+    - (b) tx2's first allocation of a different, **adjacent new year** times out (1222), because only tx1's key-range lock covers the empty range.
+  - **Mutation evidence:** with HOLDLOCK, 10/10 runs green. Without HOLDLOCK, both new tests failed in **10/10** runs, and the same-year test never failed.
+- **Follow-up 2:** the stale-Pending GL posting sweep moved out of Stretch into **core P3 task 27a**, with behaviour and tests specified. D-56 is updated.
+- **Follow-up 3: `EnableRetryOnFailure`.** The AI checked the premise empirically with a throwaway probe test (since deleted) instead of from memory:
+  - `BeginTransactionAsync` itself **succeeds**.
+  - The **first EF operation inside** the user transaction throws *"The configured execution strategy 'SqlServerRetryingExecutionStrategy' does not support user-initiated transactions…"*.
+  - Wrapping in `CreateExecutionStrategy().ExecuteAsync` works.
+  - The required fix is the same; only where the error appears differs. D-56 and P2.5 task 17f record the verified behaviour and the replay caveat (the retried unit must be the whole command, with a fresh context).
+  - *AI correction:* the AI's first wording of D-56 in this session repeated "BeginTransaction throws" before verifying. The probe disproved it, and the wording was fixed before commit.
+- `main` was fast-forwarded to `p2-persistence`.
