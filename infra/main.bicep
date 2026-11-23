@@ -267,6 +267,14 @@ resource api 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'Storage__Provider', value: 'AzureBlob' }
         { name: 'Storage__AzureBlob__ContainerName', value: documentsContainer }
         { name: 'Storage__AzureBlob__ConnectionString', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=${storageConnectionSecret.name})' }
+        // P4 secrets (D-32, D-41): created in Key Vault before the deploy, never in the template or the
+        // repo. deploy.yml fails unless App Service reports every Key Vault reference as Resolved.
+        { name: 'Jwt__SigningKey', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=JwtSigningKey)' }
+        { name: 'Hangfire__Dashboard__Password', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=HangfireDashboardPassword)' }
+        { name: 'DemoUserPasswords__handler1', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=DemoUserPassword-handler1)' }
+        { name: 'DemoUserPasswords__handler2', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=DemoUserPassword-handler2)' }
+        { name: 'DemoUserPasswords__supervisor1', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=DemoUserPassword-supervisor1)' }
+        { name: 'DemoUserPasswords__manager1', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=DemoUserPassword-manager1)' }
       ]
       connectionStrings: [
         {

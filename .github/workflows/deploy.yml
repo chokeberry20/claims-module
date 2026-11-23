@@ -213,4 +213,21 @@ jobs:
 
       - name: Smoke test
         # Waits until /health/live reports this commit, so the checks never hit the previous process.
+        env:
+          SMOKE_EXPECT_DASHBOARD_AUTH: '1' # Azure: /hangfire must challenge with Basic auth (D-41)
         run: bash scripts/smoke.sh "${{ steps.outputs.outputs.api_url }}" "${{ steps.outputs.outputs.frontend_url }}" "${{ github.sha }}"
+
+      - name: Key Vault references resolved
+        # An unresolved reference reaches the app as the literal "@Microsoft.KeyVault(...)" text, which
+        # would silently become e.g. the dashboard password. Fail unless App Service resolved them all.
+        run: |
+          refs=$(az rest --method get \
+            --url "https://management.azure.com/subscriptions/${{ vars.AZURE_SUBSCRIPTION_ID }}/resourceGroups/$RG/providers/Microsoft.Web/sites/${{ steps.outputs.outputs.api_app_name }}/config/configreferences/appsettings?api-version=2023-12-01" \
+            --query "value[].{name:name, status:properties.status}" -o json)
+          echo "$refs" | jq -r '.[] | "\(.name): \(.status)"'
+          unresolved=$(echo "$refs" | jq '[.[] | select(.status != "Resolved")] | length')
+          total=$(echo "$refs" | jq 'length')
+          if [ "$total" -lt 7 ] || [ "$unresolved" -ne 0 ]; then
+            echo "::error::$unresolved of $total Key Vault references are not resolved"
+            exit 1
+          fi

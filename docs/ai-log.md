@@ -396,3 +396,29 @@ The guard test is proven to catch a self-referential map.
   - **Smoke test 7 of 7, after** `/health/live` reported `1.0.0+5a9ef94…`.
   - Afterwards `/health` returned 200 in 0.24 s (158 ms of checks). `/health` JSON-escapes the plus sign in the version string (System.Text.Json's default encoder), which is why `smoke.sh` matches on the SHA alone.
 - `main` fast-forwarded to `p3-application` (your approval).
+
+## Session 2 (continued): 2026-11-23: P4 infrastructure
+
+Branch `p4-infrastructure` (from `main` = `c163a53`). Build + all tests right before each commit; at least one mutation per task.
+
+| Task | Commit | Tests (domain + app + integration) | Notes |
+|---|---|---|---|
+| ai-log fix | `97b490c` | 318 + 19 + 272 | A line mangled by escape processing (see below) |
+| 29 storage, upload, list | `6943404` | 318 + 44 + 284 | SAS checked offline; LocalFileSystem refused in Production |
+| 30 Hangfire | `e8dd265` | 318 + 44 + 288 | Real server on the test DB's SQL storage |
+| 31 identity, dashboard | `d2cdb38` | 318 + 44 + 299 | Basic auth over HTTP; JWT validated |
+| Azure Monitor OpenTelemetry | `2357cc4` | 318 + 44 + 301 | Your decision from the P3 review |
+| 31a prep: Key Vault refs, deploy check, smoke | (this commit) | | Deploy waits for your approval |
+
+**Found and fixed during P4 (all before commit):**
+1. **Escape processing in the tools.** A heredoc in the Bash tool and the Edit tool both turned a JSON escape sequence into the character itself. One ai-log line (P3 redeploy, `c163a53`, already on `main`) said the version's plus sign is written "as +". Fixed in `97b490c`, reworded without the escape sequence. The same thing happened earlier to a comment in `smoke.sh`, which was caught before commit. A heredoc also hung on a stray `cat > /dev/null` waiting for input; the AI stopped the process.
+2. **A test made order-dependent by Hangfire.** `MigrationTests.No_foreign_key_cascades_on_delete_in_the_database` scanned every foreign key in the database. Hangfire's own tables (schema `HangFire`, D-39) use ON DELETE CASCADE, so the test failed once a Hangfire test had created that schema. It is now scoped to `dbo`, which is what D-55 covers.
+3. **Process-global Hangfire filters.** A naive `UseFilter(new …)` per host would have added a final-failure filter for every test host, causing duplicate GL_POSTING_FAILED entries and filters holding disposed service providers. The fix is one global instance, attached to the latest host (D-70).
+4. **Test host ordering.** `AddInfrastructure` replaces `IUserDirectory`, which would have discarded the test host's in-memory directory. It is now re-applied afterwards.
+5. **Silent Key Vault failure risk.** A missing secret reaches the app as the literal `@Microsoft.KeyVault(...)` text, which a 401 smoke check would not notice. `deploy.yml` now checks App Service's reference status (D-70).
+6. Analyzer errors (CA1826) fixed as they came up.
+
+**Verified locally before the 31a deploy:**
+- `smoke.sh` with the dashboard check passes against the dev API (storage Healthy; `/hangfire` returns 401 with a Basic challenge).
+- Bicep build, lint and what-if are clean.
+- Listing Key Vault secrets is **forbidden for your account**: the vault uses RBAC, and Owner on the resource group has no data-plane rights.

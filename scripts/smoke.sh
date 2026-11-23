@@ -73,6 +73,23 @@ if grep -q '"pending":0' "$body_file"; then
 else
   fail "/health does not report 0 pending migrations"
 fi
+# Document storage (P4): in Azure this also proves the Key Vault storage connection string resolved.
+if grep -q '"storage":{"status":"Healthy"' "$body_file"; then
+  pass "/health storage Healthy"
+else
+  fail "/health storage is not Healthy"
+fi
+
+# Hangfire dashboard (D-41): in Azure it must exist and ask for Basic credentials.
+if [ "${SMOKE_EXPECT_DASHBOARD_AUTH:-0}" = 1 ]; then
+  headers=$(curl -sS -o /dev/null -D - --max-time 30 "$api/hangfire" || true)
+  if printf '%s' "$headers" | tr -d '\r' | grep -qE '^HTTP/[0-9.]+ 401' \
+     && printf '%s' "$headers" | tr -d '\r' | grep -qi '^www-authenticate: basic'; then
+    pass "/hangfire asks for Basic credentials (401)"
+  else
+    fail "/hangfire does not challenge with Basic auth: $(printf '%s' "$headers" | head -1)"
+  fi
+fi
 
 status=$(fetch "$api/swagger/v1/swagger.json")
 if [ "$status" = 200 ] && grep -q 'Claims Module API' "$body_file"; then
