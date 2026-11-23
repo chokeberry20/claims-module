@@ -365,3 +365,28 @@ The guard test is proven to catch a self-referential map.
    - a mapped database function `ClaimsDbFunctions.ClaimNumberText`, which EF translates to `CAST([ClaimNumber] AS nvarchar(50))` (public `StringTypeMapping`, no internal EF API);
    - a default type mapping for `ClaimNumber`.
    `.Contains(search)` then becomes a SQL LIKE with escaped wildcards, all in one query. Tests cover the claim's own 7-digit sequence (`0000142` shape), `2026-00`, lowercase `clm-2026`, a middle substring, a non-match and `%`. Mutation: exact matching fails the test.
+
+**Session 2 (continued), 2026-11-23: P3 deploy (28a), deploy-timing incident.**
+- **CI run 45229551225 (`8c4801c`): green.** 19 + 318 + 269 tests on SQL Server 2022, plus the Angular and Bicep jobs.
+- **Deploy run 45230074656 (`--ref p3-application`, no infra): every step green except the smoke test, 4 of 7.** The new migration `AddPostingLastEnqueuedAt` was applied on Azure, and the grant ran with `sqlcmd -b`. But `/health` and the Swagger document returned **500 with an empty body**, while `/health/live` returned 200. Afterwards both were 200. `/health` reported 5 migrations applied and 0 pending, but took 11.6 s (migrations check 10.4 s against its 10 s cap). You verified it independently: `/health` 200 in 0.49 s, Swagger 200.
+- **Root cause, from the GitHub log plus the App Service container log (read-only):**
+  - 17:42:28 the zip was deployed;
+  - 17:42:39 a new container started;
+  - **17:42:52–57 the smoke test ran**;
+  - 17:43:05 the new container's warm-up probe succeeded (after 25.6 s);
+  - 17:43:25 the old container (running since 15:09) was stopped.
+
+  The smoke test therefore checked the **old** process, whose files had just been replaced on disk. `/health/live` needs no new code, so it answered 200 and looked ready; `/health` and Swagger load more code, so they failed. The smoke test couldn't tell an old process from the new build.
+- **Also found:** App Insights receives nothing. The connection string is set, but the API has no telemetry SDK, and a Log Analytics query (through `az rest`, because the CLI command wanted an interactive extension install) returned no rows.
+- **Your decisions (D-69):**
+  1. `WEBSITE_RUN_FROM_PACKAGE=1`, after confirming nothing writes to the app folder.
+  2. The commit SHA goes in the version; `/health/live` reports it, and `smoke.sh` waits for it.
+  3. For the cold start, **don't raise the 10 s cap**; warm the DB connection and the managed-identity token at startup instead.
+  4. App Insights in P4 with Azure Monitor OpenTelemetry, not the classic SDK.
+- **Implemented and verified locally:**
+  - the version is `1.0.0+<sha>` (the SDK adds the git SHA, and CI pins it with `-p:SourceRevisionId`);
+  - `smoke.sh` passes with the right SHA, and with a wrong SHA times out reporting the live version;
+  - the startup warm-up logged "database health Healthy in 1275 ms";
+  - 3 warm-up tests: it runs, it never fails startup and stays bounded on an unreachable database, and it can be switched off;
+  - the liveness test checks the version;
+  - Bicep build, lint and what-if are clean.

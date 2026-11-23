@@ -114,7 +114,7 @@ internal static class HealthResponseWriter
         {
             status = report.Status.ToString(),
             totalDurationMs = Math.Round(report.TotalDuration.TotalMilliseconds),
-            version = typeof(HealthResponseWriter).Assembly.GetName().Version?.ToString(),
+            version = BuildInfo.Version,
             entries = report.Entries.ToDictionary(
                 e => e.Key,
                 e => new

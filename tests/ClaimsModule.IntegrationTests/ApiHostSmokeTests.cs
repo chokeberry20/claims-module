@@ -31,6 +31,9 @@ public sealed class ApiHostSmokeTests(SqlServerDatabaseFixture db)
         var response = await client.GetAsync(new Uri("/health/live", UriKind.Relative));
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        json.RootElement.GetProperty("version").GetString().ShouldBe(BuildInfo.Version); // the smoke test waits for it
+        BuildInfo.Version.ShouldContain("+"); // informational version carries the commit SHA
     }
 
     [Fact]
@@ -59,7 +62,7 @@ public sealed class ApiHostSmokeTests(SqlServerDatabaseFixture db)
     {
         // With the EF retrying strategy inside the checks this took 17 s and 85 s (measured, P2.5).
         var unreachable = new SqlConnectionStringBuilder(db.ConnectionString) { DataSource = server }.ConnectionString;
-        await using var factory = new ClaimsApiFactory(db, new Dictionary<string, string?> { ["ConnectionStrings:ClaimsDb"] = unreachable });
+        await using var factory = new ClaimsApiFactory(db, new Dictionary<string, string?> { ["ConnectionStrings:ClaimsDb"] = unreachable, [StartupWarmUp.SettingKey] = "false" });
         using var client = factory.CreateClient();
 
         var stopwatch = Stopwatch.StartNew();

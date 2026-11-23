@@ -258,6 +258,10 @@ resource api 'Microsoft.Web/sites@2024-04-01' = {
       healthCheckPath: '/health/live'
       appSettings: [
         { name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' }
+        // Run from the deployed zip, mounted read-only: a deploy swaps the whole package atomically, so a
+        // running process never sees its files replaced mid-flight (deploy-timing incident, P3). Nothing
+        // writes to the app folder: logs go to stdout, documents to Blob storage, temp files to /tmp.
+        { name: 'WEBSITE_RUN_FROM_PACKAGE', value: '1' }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
         { name: 'Cors__AllowedOrigins__0', value: frontendOrigin }
         { name: 'Storage__Provider', value: 'AzureBlob' }

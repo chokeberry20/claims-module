@@ -40,7 +40,8 @@ jobs:
           global-json-file: global.json
 
       - name: Publish API
-        run: dotnet publish src/ClaimsModule.API -c Release -o out/api
+        # The commit SHA lands in the informational version (1.0.0+<sha>); /health/live reports it.
+        run: dotnet publish src/ClaimsModule.API -c Release -o out/api -p:SourceRevisionId=${{ github.sha }}
 
       - name: Build EF Core migrations bundle
         run: |
@@ -211,4 +212,5 @@ jobs:
           skip_api_build: true
 
       - name: Smoke test
-        run: bash scripts/smoke.sh "${{ steps.outputs.outputs.api_url }}" "${{ steps.outputs.outputs.frontend_url }}"
+        # Waits until /health/live reports this commit, so the checks never hit the previous process.
+        run: bash scripts/smoke.sh "${{ steps.outputs.outputs.api_url }}" "${{ steps.outputs.outputs.frontend_url }}" "${{ github.sha }}"

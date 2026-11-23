@@ -49,16 +49,19 @@ app.UseCors(HostingServiceCollectionExtensions.CorsPolicy);
 app.UseSwagger();
 app.UseSwaggerUI(options => options.DocumentTitle = "Claims Module API");
 
-app.MapGet("/health/live", () => Results.Ok(new { status = "Healthy" }))
+app.MapGet("/health/live", () => Results.Ok(new { status = "Healthy", version = BuildInfo.Version }))
     .WithName("Liveness")
     .WithTags("Health")
-    .WithSummary("Liveness probe: the process is up. No dependencies are checked.");
+    .WithSummary("Liveness probe: the process is up, and which build it runs. No dependencies are checked.");
 
 app.MapHealthChecks("/health", new HealthCheckOptions { ResponseWriter = HealthResponseWriter.WriteAsync });
 
 app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 
-app.Run();
+// Warm the managed-identity token, SQL connection and EF model before serving (D-65, P3 incident).
+await StartupWarmUp.RunAsync(app.Services, app.Configuration, app.Logger);
+
+await app.RunAsync();
 
 /// <summary>Exposed for WebApplicationFactory in integration tests.</summary>
 public partial class Program;

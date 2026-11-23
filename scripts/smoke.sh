@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
 # Smoke test for a deployed (or locally running) Claims Module (P2.5 task 17e).
 #
-#   scripts/smoke.sh <api-base-url> [frontend-url]
-#   scripts/smoke.sh https://claimsdcs-api-xxxxxx.azurewebsites.net https://claimsdcs-web.azurestaticapps.net
+#   scripts/smoke.sh <api-base-url> [frontend-url] [expected-commit-sha]
+#   scripts/smoke.sh https://claimsdcs-api-xxxxxx.azurewebsites.net https://claimsdcs-web.azurestaticapps.net "$GITHUB_SHA"
 #   scripts/smoke.sh http://localhost:5180 http://localhost:4200
 #
 # Needs only bash, curl and grep. Waits up to SMOKE_WAIT_SECONDS (default 300) for the API to come
-# up, because App Service restarts after a deploy. Exits non-zero on the first failed check.
-# Later phases extend it with their endpoints (incremental deployment rule, PLAN P3+).
+# up, because App Service restarts after a deploy. With an expected commit SHA it also waits until
+# /health/live reports that build ("version": "1.0.0+<sha>"): right after a deploy the previous
+# process can still answer, and checking it gave false failures (P3 deploy-timing incident).
+# Exits non-zero if any check fails. Later phases extend it with their endpoints.
 set -euo pipefail
 
-api="${1:?usage: smoke.sh <api-base-url> [frontend-url]}"
+api="${1:?usage: smoke.sh <api-base-url> [frontend-url] [expected-commit-sha]}"
 web="${2:-}"
+expected_sha="${3:-}"
 api="${api%/}"
 web="${web%/}"
 wait_seconds="${SMOKE_WAIT_SECONDS:-300}"
@@ -30,17 +33,34 @@ fetch() {
   curl -sS -o "$body_file" -w '%{http_code}' --max-time 30 "$@" 2>/dev/null || true
 }
 
+live_version() { grep -o '"version":"[^"]*"' "$body_file" | sed 's/"version":"\(.*\)"/\1/' || true; }
+
+# Ready = /health/live answers 200 and, if a SHA is given, reports that build.
+ready() {
+  [ "$(fetch "$api/health/live")" = 200 ] || return 1
+  [ -z "$expected_sha" ] && return 0
+  # Match the SHA alone: the JSON encoder may escape the plus sign in "1.0.0+<sha>".
+  case "$(live_version)" in
+    *"$expected_sha"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 echo "API: $api"
-echo "== waiting for /health/live (up to ${wait_seconds}s)"
+if [ -n "$expected_sha" ]; then
+  echo "== waiting for /health/live to report build +$expected_sha (up to ${wait_seconds}s)"
+else
+  echo "== waiting for /health/live (up to ${wait_seconds}s)"
+fi
 deadline=$((SECONDS + wait_seconds))
-until [ "$(fetch "$api/health/live")" = 200 ]; do
+until ready; do
   if [ $SECONDS -ge $deadline ]; then
-    fail "/health/live did not return 200 within ${wait_seconds}s"
+    fail "/health/live not ready within ${wait_seconds}s (last version: $(live_version))"
     exit 1
   fi
   sleep 10
 done
-pass "/health/live 200"
+pass "/health/live 200, version $(live_version)"
 
 status=$(fetch "$api/health")
 if [ "$status" = 200 ] && grep -q '"status":"Healthy"' "$body_file"; then
