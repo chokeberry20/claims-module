@@ -1,3 +1,4 @@
+using ClaimsModule.Application;
 using ClaimsModule.API.Hosting;
 using ClaimsModule.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -23,6 +24,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
 
 builder.Services.AddClaimsHosting(builder.Configuration);
 builder.Services.AddPersistence(connectionString);
+builder.Services.AddApplication();
 
 // Fail-fast checks: their own short-timeout connection, outside the EF retry strategy.
 builder.Services.AddSingleton(new HealthCheckDatabase(connectionString));

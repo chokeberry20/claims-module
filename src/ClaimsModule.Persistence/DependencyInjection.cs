@@ -51,6 +51,7 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IClaimNumberGenerator, ClaimNumberGenerator>();
         services.AddScoped<IAuditLogService, AuditLogService>();
+        services.AddScoped<IIdempotencyStore, IdempotencyStore>();
         services.AddScoped<IClaimRepository, ClaimRepository>();
         services.AddScoped<IReserveComponentRepository, ReserveComponentRepository>();
         services.AddScoped<IClaimDocumentRepository, ClaimDocumentRepository>();

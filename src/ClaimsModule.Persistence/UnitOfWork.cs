@@ -1,4 +1,7 @@
 using ClaimsModule.Application.Abstractions.Persistence;
+using ClaimsModule.Application.Common.Exceptions;
+using ClaimsModule.Persistence.Entities;
+using Microsoft.Data.SqlClient;
 using ClaimsModule.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -45,6 +48,12 @@ internal sealed partial class UnitOfWork(
         {
             _awaitingCommit.Clear();
             throw new ConcurrencyException("The record was changed by another user. Reload it and try again.", ex);
+        }
+        catch (DbUpdateException ex) when (IsDuplicateIdempotencyKey(ex))
+        {
+            // Two requests with the same Idempotency-Key ran concurrently; the first one wins (D-66).
+            _awaitingCommit.Clear();
+            throw new IdempotencyConflictException("A request with this Idempotency-Key is already being processed. Retry shortly.");
         }
         catch
         {
@@ -136,6 +145,10 @@ internal sealed partial class UnitOfWork(
             LogAfterCommitFailure(logger, ex, events.Count);
         }
     }
+
+    private static bool IsDuplicateIdempotencyKey(DbUpdateException ex) =>
+        ex.InnerException is SqlException { Number: 2601 or 2627 }
+        && ex.Entries.Any(e => e.Entity is IdempotencyRecord);
 
     private List<IDomainEvent> CollectAndClearDomainEvents()
     {

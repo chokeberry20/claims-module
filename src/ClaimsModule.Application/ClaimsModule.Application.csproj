@@ -7,6 +7,15 @@
     <ProjectReference Include="..\ClaimsModule.Domain\ClaimsModule.Domain.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="MediatR" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="ClaimsModule.Application.Tests" />
+    <InternalsVisibleTo Include="ClaimsModule.IntegrationTests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
 </Project>

@@ -57,17 +57,6 @@ internal sealed class RequestCorrelationContext(IHttpContextAccessor accessor) :
 /// event reaches it, so audit entries can never be dropped silently. The walking skeleton has no
 /// endpoints that raise events.
 /// </summary>
-internal sealed class NotYetWiredDomainEventDispatcher : IDomainEventDispatcher
-{
-    public Task DispatchBeforeCommitAsync(IReadOnlyCollection<IDomainEvent> domainEvents, CancellationToken cancellationToken) =>
-        domainEvents.Count == 0
-            ? Task.CompletedTask
-            : throw new InvalidOperationException("Domain event dispatch is wired in P3; no handler is registered yet.");
-
-    public Task DispatchAfterCommitAsync(IReadOnlyCollection<IDomainEvent> domainEvents, CancellationToken cancellationToken) =>
-        Task.CompletedTask;
-}
-
 internal static class HostingServiceCollectionExtensions
 {
     public const string CorsPolicy = "frontend";
@@ -84,7 +73,6 @@ internal static class HostingServiceCollectionExtensions
         services.AddSingleton<ITenantProvider, ConfiguredTenantProvider>();
         services.AddScoped<ICurrentUser, AnonymousCurrentUser>();
         services.AddScoped<ICorrelationContext, RequestCorrelationContext>();
-        services.AddScoped<IDomainEventDispatcher, NotYetWiredDomainEventDispatcher>();
 
         var origins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
         services.AddCors(options => options.AddPolicy(CorsPolicy, policy => policy
