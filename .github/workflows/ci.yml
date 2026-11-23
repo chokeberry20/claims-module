@@ -1,0 +1,113 @@
+name: ci
+
+# Build and test everything on every push and pull request. No Azure access needed:
+# the integration tests run against a throwaway SQL Server 2022 service container (D-42).
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: .NET build + tests (SQL Server 2022)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      # Ephemeral container reachable only from this runner; the password differs per run.
+      SA_PASSWORD: Ci!Sql${{ github.run_id }}x
+      DOTNET_NOLOGO: 'true'
+      DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+    services:
+      sql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: 'Y'
+          MSSQL_SA_PASSWORD: Ci!Sql${{ github.run_id }}x
+          MSSQL_PID: Developer
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P $MSSQL_SA_PASSWORD -Q 'SELECT 1' -b"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+          --health-start-period 20s
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: |
+          dotnet restore ClaimsModule.sln
+          dotnet tool restore
+
+      - name: Build (warnings are errors)
+        run: dotnet build ClaimsModule.sln -c Release --no-restore
+
+      - name: EF model and migrations are in sync
+        run: dotnet ef migrations has-pending-model-changes --project src/ClaimsModule.Persistence --startup-project src/ClaimsModule.Persistence --no-build --configuration Release
+
+      - name: Test
+        env:
+          CI: 'true'
+          ConnectionStrings__ClaimsDb: Server=localhost,1433;Database=ClaimsModule_Tests;User Id=sa;Password=${{ env.SA_PASSWORD }};TrustServerCertificate=True;Encrypt=True
+        run: >-
+          dotnet test ClaimsModule.sln -c Release --no-build
+          --logger "trx;LogFilePrefix=results"
+          --logger "console;verbosity=normal"
+          --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotnet-test-results
+          path: TestResults/*.trx
+          if-no-files-found: warn
+
+  frontend:
+    name: Angular build + tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web/claims-web
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/claims-web/package-lock.json
+
+      - run: npm ci
+      - run: npx ng build
+      - run: npx ng test --watch=false
+
+  infra:
+    name: Bicep build + lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      # No Azure login needed: this only compiles the template to ARM JSON and runs the linter.
+      - name: az bicep build
+        run: |
+          az bicep install
+          az bicep version
+          az bicep build --file infra/main.bicep --stdout > /dev/null
+          az bicep lint --file infra/main.bicep

@@ -1,0 +1,194 @@
+name: deploy
+
+# Manual deployment to Azure (P2.5 task 17d). Authenticates with GitHub OIDC: no client secret.
+#
+# Required in the GitHub environment "production":
+#   variables: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AZURE_RESOURCE_GROUP,
+#              NAME_PREFIX, SQL_ADMIN_LOGIN, SQL_ADMIN_OBJECT_ID
+# The OIDC identity needs Contributor + role-assignment rights on the resource group (for the Bicep
+# role assignment), and must be a member of the SQL Entra admin group (to run migrations).
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_infra:
+        description: Deploy infra/main.bicep before the apps (needed on the first run)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  INFRA_DEPLOYMENT_NAME: claims-infra
+
+jobs:
+  build:
+    name: Build API, migrations bundle and frontend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Publish API
+        run: dotnet publish src/ClaimsModule.API -c Release -o out/api
+
+      - name: Build EF Core migrations bundle
+        run: |
+          dotnet tool restore
+          dotnet ef migrations bundle \
+            --project src/ClaimsModule.Persistence --startup-project src/ClaimsModule.Persistence \
+            --configuration Release --runtime linux-x64 --self-contained --force \
+            --output out/efbundle/efbundle
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/claims-web/package-lock.json
+
+      - name: Build frontend
+        working-directory: web/claims-web
+        run: |
+          npm ci
+          npx ng build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: api
+          path: out/api
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: efbundle
+          path: out/efbundle
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web
+          path: web/claims-web/dist/claims-web/browser
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy to Azure
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    environment:
+      name: production
+      url: ${{ steps.outputs.outputs.frontend_url }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      RG: ${{ vars.AZURE_RESOURCE_GROUP }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy infrastructure (Bicep)
+        if: ${{ inputs.deploy_infra }}
+        run: |
+          az deployment group create \
+            --resource-group "$RG" \
+            --name "$INFRA_DEPLOYMENT_NAME" \
+            --template-file infra/main.bicep \
+            --parameters namePrefix="${{ vars.NAME_PREFIX }}" \
+                         sqlAdminLogin="${{ vars.SQL_ADMIN_LOGIN }}" \
+                         sqlAdminObjectId="${{ vars.SQL_ADMIN_OBJECT_ID }}" \
+            --output none
+
+      - name: Read infrastructure outputs
+        id: outputs
+        run: |
+          o=$(az deployment group show -g "$RG" -n "$INFRA_DEPLOYMENT_NAME" --query properties.outputs -o json)
+          get() { echo "$o" | jq -r ".$1.value"; }
+          {
+            echo "api_app_name=$(get apiAppName)"
+            echo "api_url=$(get apiUrl)"
+            echo "swa_name=$(get staticWebAppName)"
+            echo "frontend_url=$(get frontendUrl)"
+            echo "sql_server_name=$(get sqlServerName)"
+            echo "sql_server_fqdn=$(get sqlServerFqdn)"
+            echo "sql_database=$(get sqlDatabaseName)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open SQL firewall for this runner
+        id: firewall
+        run: |
+          ip=$(curl -fsS https://api.ipify.org)
+          rule="gh-runner-${{ github.run_id }}-${{ github.run_attempt }}"
+          az sql server firewall-rule create -g "$RG" -s "${{ steps.outputs.outputs.sql_server_name }}" \
+            -n "$rule" --start-ip-address "$ip" --end-ip-address "$ip" --output none
+          echo "rule=$rule" >> "$GITHUB_OUTPUT"
+
+      - name: Apply EF Core migrations
+        run: |
+          chmod +x artifacts/efbundle/efbundle
+          # Passwordless: Active Directory Default picks up the az login session of the OIDC identity.
+          artifacts/efbundle/efbundle --connection \
+            "Server=tcp:${{ steps.outputs.outputs.sql_server_fqdn }},1433;Database=${{ steps.outputs.outputs.sql_database }};Authentication=Active Directory Default;Encrypt=True;Connect Timeout=60"
+
+      - name: Grant the API's managed identity least-privilege access
+        run: |
+          sed "s/\$(AppPrincipalName)/${{ steps.outputs.outputs.api_app_name }}/g" db/scripts/app-user-azure.sql > out-app-user.sql
+          cat db/scripts/app-role.sql out-app-user.sql > grant-app.sql
+      - uses: azure/sql-action@v2
+        with:
+          connection-string: Server=tcp:${{ steps.outputs.outputs.sql_server_fqdn }},1433;Database=${{ steps.outputs.outputs.sql_database }};Authentication=Active Directory Default;Encrypt=True;
+          path: grant-app.sql
+
+      - name: Close SQL firewall
+        if: always() && steps.firewall.outputs.rule != ''
+        run: |
+          az sql server firewall-rule delete -g "$RG" -s "${{ steps.outputs.outputs.sql_server_name }}" \
+            -n "${{ steps.firewall.outputs.rule }}" --output none
+
+      - name: Deploy API to App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ steps.outputs.outputs.api_app_name }}
+          package: artifacts/api
+
+      - name: Point the frontend at the API
+        run: |
+          printf '{\n  "apiBaseUrl": "%s"\n}\n' "${{ steps.outputs.outputs.api_url }}" > artifacts/web/app-config.json
+          cat artifacts/web/app-config.json
+
+      - name: Get Static Web App deployment token
+        id: swa
+        run: |
+          token=$(az staticwebapp secrets list -g "$RG" -n "${{ steps.outputs.outputs.swa_name }}" --query properties.apiKey -o tsv)
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy frontend to Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ steps.swa.outputs.token }}
+          action: upload
+          app_location: artifacts/web
+          skip_app_build: true
+          skip_api_build: true
+
+      - name: Smoke test
+        run: bash scripts/smoke.sh "${{ steps.outputs.outputs.api_url }}" "${{ steps.outputs.outputs.frontend_url }}"
