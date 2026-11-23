@@ -65,16 +65,6 @@ internal sealed class NotYetWiredUserDirectory : IUserDirectory
         throw new InvalidOperationException("The user directory is wired in P4 (task 31).");
 }
 
-/// <summary>
-/// Hangfire arrives in P4 (task 30). Until then an enqueue fails after commit: the Unit of Work logs it
-/// and the stale-posting sweep (task 27a) re-enqueues once the scheduler exists.
-/// </summary>
-internal sealed class NotYetWiredJobScheduler : ClaimsModule.Application.Abstractions.Jobs.IJobScheduler
-{
-    public void EnqueueGlPosting(Guid transactionId, string idempotencyKey) =>
-        throw new InvalidOperationException("The job scheduler is wired in P4 (task 30).");
-}
-
 internal static class HostingServiceCollectionExtensions
 {
     public const string CorsPolicy = "frontend";
@@ -104,7 +94,7 @@ internal static class HostingServiceCollectionExtensions
         services.AddScoped<ICurrentUser, AnonymousCurrentUser>();
         services.AddScoped<ICorrelationContext, RequestCorrelationContext>();
         services.AddSingleton<IUserDirectory, NotYetWiredUserDirectory>();
-        services.AddSingleton<ClaimsModule.Application.Abstractions.Jobs.IJobScheduler, NotYetWiredJobScheduler>();
+        services.Configure<ClaimsModule.Application.Abstractions.Jobs.GlPostingOptions>(configuration.GetSection(ClaimsModule.Application.Abstractions.Jobs.GlPostingOptions.SectionName));
 
         var origins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
         services.AddCors(options => options.AddPolicy(CorsPolicy, policy => policy

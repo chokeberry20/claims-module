@@ -68,5 +68,9 @@ public sealed class MigrationTests(SqlServerDatabaseFixture db)
 
     [Fact]
     public async Task No_foreign_key_cascades_on_delete_in_the_database() =>
-        (await db.ScalarAsync<int>("SELECT COUNT(*) FROM sys.foreign_keys WHERE delete_referential_action <> 0")).ShouldBe(0);
+        // D-55 covers the application schema (dbo), which the migrations own. Hangfire installs its own
+        // tables in the HangFire schema (D-39) with ON DELETE CASCADE; this test used to fail whenever a
+        // Hangfire test had created that schema earlier in the run.
+        (await db.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.foreign_keys WHERE delete_referential_action <> 0 AND SCHEMA_NAME(schema_id) = 'dbo'")).ShouldBe(0);
 }

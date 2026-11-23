@@ -1,3 +1,4 @@
+using ClaimsModule.Infrastructure.Jobs;
 using ClaimsModule.Infrastructure;
 using ClaimsModule.Application.Abstractions.Storage;
 using ClaimsModule.Application;
@@ -28,6 +29,10 @@ builder.Services.AddClaimsHosting(builder.Configuration, builder.Environment);
 builder.Services.AddPersistence(connectionString);
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure();
+
+// Hangfire (P4 task 30): SQL Server storage in the HangFire schema; the server can be switched off (tests).
+var jobsOptions = builder.Configuration.GetSection(JobsOptions.SectionName).Get<JobsOptions>() ?? new JobsOptions();
+builder.Services.AddClaimsJobs(connectionString, jobsOptions);
 
 // Fail-fast checks: their own short-timeout connection, outside the EF retry strategy.
 builder.Services.AddSingleton(new HealthCheckDatabase(connectionString));
@@ -73,6 +78,11 @@ app.MapGet("/health/live", () => Results.Ok(new { status = "Healthy", version = 
 app.MapHealthChecks("/health", new HealthCheckOptions { ResponseWriter = HealthResponseWriter.WriteAsync });
 
 app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
+
+if (jobsOptions.ServerEnabled)
+{
+    JobsRegistration.RegisterRecurringJobs(app.Services.GetRequiredService<Hangfire.IRecurringJobManager>());
+}
 
 // Warm the managed-identity token, SQL connection and EF model before serving (D-65, P3 incident).
 await StartupWarmUp.RunAsync(app.Services, app.Configuration, app.Logger);

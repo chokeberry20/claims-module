@@ -20,6 +20,7 @@ internal sealed class ClaimsApiFactory(SqlServerDatabaseFixture db, IReadOnlyDic
         builder.UseSetting("ConnectionStrings:ClaimsDb", db.ConnectionString);
         // Local document storage in a per-factory temp folder (appsettings.json defaults to AzureBlob).
         builder.UseSetting("Storage:Provider", "LocalFileSystem");
+        builder.UseSetting("Hangfire:ServerEnabled", "false"); // job tests start their own server
         builder.UseSetting("Storage:LocalFileSystem:RootPath", StorageRoot);
         foreach (var (key, value) in overrides ?? new Dictionary<string, string?>())
         {
