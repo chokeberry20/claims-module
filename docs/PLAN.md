@@ -1,6 +1,6 @@
 # Claims Module (FNOL + Reserve Management): Plan
 
-_Status: approved plan, revision 4 (2026-11-22). Implementation: P0, P1, P2, P2.5 and P3 done and reviewed; P4 in progress (see the status line under each phase; details and run IDs in ai-log.md)._
+_Status: approved plan, revision 4 (2026-11-22). Implementation: P0, P1, P2, P2.5 and P3 done and reviewed; P4 done and awaiting review (see the status line under each phase; details and run IDs in ai-log.md)._
 _Related: [DECISIONS.md](DECISIONS.md) (D-01…D-59), [ai-log.md](ai-log.md)._
 _Section numbering follows the approved plan: §7 (ambiguities and contradictions) is in DECISIONS.md, and §9 (AI log) is in ai-log.md._
 
@@ -348,6 +348,8 @@ Each task ends with a **Verify** check. Commit after each task (git init in P0).
 30. Hangfire: `IJobScheduler` implementation, `PostGLReserveChangeJob`, `SlaMonitoringJob`, the final-failure state filter, retry config, simulated failure rate. *Verify:* an integration test with an in-memory Hangfire setup.
 31. JWT issuer, demo user directory, correlation context, and `BasicAuthDashboardFilter` (D-41). *Verify:* tests. Missing or wrong credentials get 401 with `WWW-Authenticate`. Correct credentials pass.
 31a. Deploy & smoke. Check that the storage connection string and the Hangfire dashboard password from Key Vault resolve on App Service.
+
+*Status 2026-11-23: **P4 tasks 29–31a done, awaiting your review*** (branch `p4-infrastructure`, `b9f1c93`; plus Azure Monitor OpenTelemetry). CI run 45267106399 green (44 + 318 + 301). **31a:** deploy run 45267640714 (`deploy_infra=true`): smoke 9 of 9 after `/health/live` reported the commit, including `storage` Healthy and `/hangfire` 401 with a Basic challenge. All 7 Key Vault references are Resolved. The dashboard opens with the Key Vault password and refuses a wrong one, and lists both recurring jobs (Hangfire's tables installed under the least-privilege role). App Insights receives requests, SQL dependencies and logs. Open: the startup warm-up log line was not found in AppTraces.
 
 **P5 – API**
 32. Program composition: auth (JWT Bearer plus role policies), CORS, Swagger with Bearer, Hangfire server, `RecurringJob.AddOrUpdate("sla", "*/15 * * * *")`. Then the dashboard at `/hangfire` behind Basic auth, mapped only when credentials are configured (D-41). *Verify:* the app starts on a migrated DB and `/swagger` loads. Anonymous `/hangfire` makes the browser prompt. The configured credentials open the dashboard.

@@ -422,3 +422,27 @@ Branch `p4-infrastructure` (from `main` = `c163a53`). Build + all tests right be
 - `smoke.sh` with the dashboard check passes against the dev API (storage Healthy; `/hangfire` returns 401 with a Basic challenge).
 - Bicep build, lint and what-if are clean.
 - Listing Key Vault secrets is **forbidden for your account**: the vault uses RBAC, and Owner on the resource group has no data-plane rights.
+
+**Session 2 (continued), 2026-11-23: P4 task 31a (deploy & smoke).**
+- **Your approval:** the role assignment (vault scope only), six secrets, push, CI, the deploy with `deploy_infra=true` and the App Insights check. **Your conditions:** secret values never appear in command text or output (each is generated and passed to az inside the same command through a variable); on a 403 from RBAC propagation, wait and retry without changing roles.
+- **Role:** "Key Vault Secrets Officer" for your account, scoped to vault `claims7316-kv-obyl3nugvc` only. There was no 403, so the retry loop never waited.
+- **AI error: weak secrets written, caught and replaced before any deploy.**
+  - The first secret script ran in **Windows PowerShell 5.1 (.NET Framework)**, which has no `RandomNumberGenerator.Fill`. The call failed, the byte arrays stayed all zeros, and the loop kept going past the error. **All six secrets were set to predictable all-zero values.** No value was printed and nothing had been deployed.
+  - Fix, minutes later: new versions written with `RandomNumberGenerator.Create().GetBytes()` in a script with `$ErrorActionPreference = 'Stop'` and a check that refuses an all-zero result. Then **each weak version was disabled** (`az keyvault secret set-attributes --enabled false`); each secret now has exactly one enabled version.
+  - Verified without printing values: lengths 24–86 characters, 17–51 distinct characters, none matching the zero pattern.
+  - The disabled versions stay in the vault's history, because individual versions can't be purged. Disabled versions can't be read or used by Key Vault references.
+- **CI run 45267106399 (`b9f1c93`): green.** 44 + 318 + 301 tests on SQL Server 2022, including the real Hangfire server tests; Angular and Bicep jobs green.
+- **Deploy run 45267640714 (`--ref p4-infrastructure`, `deploy_infra=true`): green.**
+  - **Smoke test 9 of 9**, after `/health/live` reported `1.0.0+b9f1c93…`. This includes `storage` Healthy, which proves the storage Key Vault reference and the Blob container, and `/hangfire` answering 401 with a Basic challenge.
+  - **Key Vault references: all 7 Resolved** (storage, JWT key, dashboard password, four demo passwords).
+  - **Dashboard, checked read-only** with the password fetched from Key Vault into a variable, never printed: `/hangfire` 200, `/hangfire/recurring` 200 listing `sla-monitoring` and `stale-posting-sweep`; a wrong password gives 401. Hangfire therefore installed its tables in the `HangFire` schema as the API's managed identity under the least-privilege role (D-62), and registered both recurring jobs.
+- **App Insights (Azure Monitor OpenTelemetry): data arrives.** Over 2 h: 16 requests, 1001 SQL dependencies (mostly Hangfire polling), 23 log traces.
+  - *AI mistakes in the check:* the first query used `last` as an alias, a reserved word in KQL, so it never parsed. The loop treated the error as "no rows yet" and waited 8 minutes for nothing. A later query hit the same problem with `first`. A dependency breakdown also used the wrong column (`Type` instead of `DependencyType`).
+  - **Open:** the startup warm-up log line ("Startup warm-up: database health …") was not found in AppTraces. Not yet explained; to look at in P5.
+- **PLAN.md statuses, your request:**
+  - the header no longer says implementation hasn't started;
+  - status lines added for P0, P1 and P2;
+  - P3 shows done including 28a (run 45233506838);
+  - P4 shows done, awaiting review.
+  
+  While checking, the AI found that PLAN.md line 264 had lost the backslash in the `SQLEXPRESS01` connection string twice (the C-13 heredoc bug, in an older edit). It was restored from a script file written with the Write tool, because the Bash tool also collapsed the backslash in an inline perl expression. The AI's first grep for this was wrong (bad escaping) and reported no problem; the raw bytes (`od -c`) showed otherwise.
