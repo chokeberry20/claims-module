@@ -1,5 +1,6 @@
 using ClaimsModule.Application.Abstractions.Audit;
 using ClaimsModule.Application.Abstractions.Persistence;
+using ClaimsModule.Application.Claims;
 using ClaimsModule.Application.ReferenceData;
 using ClaimsModule.Persistence.Interceptors;
 using ClaimsModule.Persistence.Queries;
@@ -55,6 +56,7 @@ public static class DependencyInjection
         services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddScoped<IIdempotencyStore, IdempotencyStore>();
         services.AddScoped<IReferenceDataReader, ReferenceDataReader>();
+        services.AddScoped<IClaimReader, ClaimReader>();
         services.AddScoped<IClaimRepository, ClaimRepository>();
         services.AddScoped<IReserveComponentRepository, ReserveComponentRepository>();
         services.AddScoped<IClaimDocumentRepository, ClaimDocumentRepository>();

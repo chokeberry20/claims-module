@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.RegularExpressions;
 
@@ -55,6 +56,27 @@ public sealed partial record ClaimNumber
         return Create(
             int.Parse(match.Groups["year"].Value, CultureInfo.InvariantCulture),
             int.Parse(match.Groups["seq"].Value, CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>Like <see cref="Parse"/>, but returns false instead of throwing (e.g. for free-text search).</summary>
+    public static bool TryParse(string? value, [NotNullWhen(true)] out ClaimNumber? claimNumber)
+    {
+        claimNumber = null;
+        var match = value is null ? null : FormatRegex().Match(value.Trim().ToUpperInvariant());
+        if (match is not { Success: true })
+        {
+            return false;
+        }
+
+        var year = int.Parse(match.Groups["year"].Value, CultureInfo.InvariantCulture);
+        var sequence = int.Parse(match.Groups["seq"].Value, CultureInfo.InvariantCulture);
+        if (year < 2000 || sequence < 1)
+        {
+            return false;
+        }
+
+        claimNumber = Create(year, sequence);
+        return true;
     }
 
     public override string ToString() => Value;

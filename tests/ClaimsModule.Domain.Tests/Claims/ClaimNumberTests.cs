@@ -40,4 +40,27 @@ public sealed class ClaimNumberTests
     [Fact]
     public void Parse_rejects_zero_sequence() =>
         Should.Throw<ArgumentOutOfRangeException>(() => ClaimNumber.Parse("CLM-2026-0000000"));
+
+    [Theory]
+    [InlineData("CLM-2026-0000142")]
+    [InlineData("clm-2026-0000142")] // search input: case and surrounding spaces are forgiven
+    [InlineData("  CLM-2026-0000142 ")]
+    public void TryParse_accepts_search_input(string value)
+    {
+        ClaimNumber.TryParse(value, out var number).ShouldBeTrue();
+        number.ShouldBe(ClaimNumber.Create(2026, 142));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("CLM-2026-142")]
+    [InlineData("CLM-2026-0000000")]
+    [InlineData("CLM-1999-0000001")]
+    [InlineData("meridian")]
+    public void TryParse_returns_false_instead_of_throwing(string? value)
+    {
+        ClaimNumber.TryParse(value, out var number).ShouldBeFalse();
+        number.ShouldBeNull();
+    }
 }
