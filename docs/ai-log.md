@@ -310,3 +310,46 @@ Branch `p2_5-walking-skeleton` (from `main` = `5c7eac9`).
   - **Proven both ways, with no permanent test input (your condition):**
     - A throwaway branch `tmp/prove-sqlcmd-b` appended a deliberate `THROW 50000` to the grant script. Run 45200527514: *"Msg 50000 … Deliberate failure"*, exit code 1, **"Run the grant script" failed**, every later deploy step skipped, and the firewall rule was still closed. The branch was deleted locally and on GitHub afterwards.
     - Normal run 45201122582 (`main` at `d7b8a0f`): green. Checksum `OK`, grant passed, smoke 7/7.
+
+## Session 2 (continued): 2026-11-23: P3 application layer
+
+Branch `p3-application` (from `main` = `9fa1965`). Each task: build + all tests right before its commit (the commit script refuses on red), plus at least one mutation per task.
+
+| Task | Commit | Tests at commit (domain + app + integration) | Notes |
+|---|---|---|---|
+| 18 pipeline, exceptions, dispatcher | `6b5b315` | 306 + 14 + 156 | Unit test caught a real bug: one shared FluentValidation context accumulated failures across validators |
+| 19 reference/policy queries | `2698043` | 306 + 17 + 166 | AutoMapper decision D-67 (yours); commit guard caught 19 tests broken by a missing IMapper in the persistence-only harness |
+| 20 CreateClaim + initial reserve (25a) | `75bd575` | 306 + 17 + 188 | Pipeline reordered: Authorization before Validation |
+| 21 list/detail queries | `0a651ce` | 315 + 17 + 198 | `ClaimNumber.TryParse` added (claim number is value-converted) |
+| 22 maintenance + waiver | `28028c4` | 315 + 17 + 207 | |
+| 23/23a transitions + table check | `de9a880` | 315 + 17 + 220 | |
+| 24 parties/risk objects | `6180652` | 315 + 17 + 224 | |
+| 25/25a reserves | `2308e31` | 315 + 17 + 244 | |
+| 26/27a GL posting + sweep | `2475129` | 318 + 17 + 255 | Migration AddPostingLastEnqueuedAt |
+| P2 fix: component RowVer | `f8ea292` | 318 + 17 + 256 | See below |
+| 27 SLA scan | `d8a099a` | 318 + 17 + 256 | |
+| 28 audit handlers + audit query | `7b4d839` | 318 + 19 + 267 | |
+| 28a deploy & smoke | — | — | Waiting for your approval to push and deploy |
+
+**Your decision (P3):** AutoMapper 14.0.0 fails the build with three high-severity advisories (GHSA-rvv3-g6hj-g44x, GHSA-gpwp-5797-mjff, GHSA-6vhm-j9h7-f9gh); they are fixed only in the commercial 15.1.4+/16.3+. You chose option 1 after verifying the advisories yourself:
+- Suppress exactly these three IDs.
+- Don't cite MaxDepth, because GHSA-gpwp-5797-mjff bypasses it.
+- Base the "not affected" analysis on flat maps, ProjectTo and no user-supplied object graphs, plus a recursion-guard test.
+- Record D-67 with the residual risk and the upgrade path, and list it under deviations.
+The guard test is proven to catch a self-referential map.
+
+**AI decisions made during P3 (logged for your review):**
+- **D-66:** Idempotency-Key at command level, stored in the same transaction.
+- **Pipeline order:** Logging → Authorization → Validation → Transaction → Idempotency. PLAN listed Validation before Authorization, but the async validators query the database and must not run for unauthorised callers.
+- **Search:** the claim number matches exactly, because the column is value-converted. Policy number and client name use contains-matching.
+- **Not audited on their own:** ClaimWithdrawn (STATUS_CHANGED has the reason) and ReservePostingRequeued (plumbing).
+- **Placeholders until P4:** the API host has explicit "wired in P4" placeholders for IUserDirectory (task 31) and IJobScheduler (task 30). A failed enqueue is logged after commit, and the sweep recovers it.
+- **Audit query:** GetAuditLogQuery (FR-71) was added in task 28; the tests need it and P5 exposes it.
+
+**AI errors caught in P3 (all before commit):**
+1. **A P2 persistence gap, found by a P3 test.** Aggregate-root versioning covered only Claim children. A change to only a ReserveTransaction didn't bump the ClaimReserveComponent RowVer. `Concurrent_postings_post_exactly_once` passed in the first runs by timing, then failed during the commit verification. In isolation it failed 6 out of 6 with **two "Posted" outcomes**, which would have meant two GL postings and two GL_POSTING_SIMULATED entries. The AI investigated the failure rather than re-running it. It fixed the interceptor and added a deterministic persistence test, which fails without the fix and passes with it. The concurrent test then passed 5 out of 5 (D-68).
+2. **Shared FluentValidation context** (task 18): one context was reused across validators, so errors were duplicated. Caught by a unit test.
+3. **Missing IMapper in the persistence-only test harness** (task 19): 19 tests failed. The commit guard refused the commit, and the harness was fixed.
+4. **Wrong test expectations:** "pol-2024" matches 2 seeded policies, not 5. Fixed after reading the seed data.
+5. **Non-compiling mutations** in tasks 22 and 25: an unused parameter and CA1822 broke the build, so the tests ran against the previous binary. The AI recognised the stale results and redid both mutations so they compiled; both were then caught.
+6. **EF translation:** `EF.Property<string>` on the value-converted ClaimNumber threw at runtime (5 tests). Replaced by exact matching and client-side `.Value` in the final projection.

@@ -334,6 +334,8 @@ Each task ends with a **Verify** check. Commit after each task (git init in P0).
 28. Domain-event → audit handlers for every S14.1 event. *Verify:* a test asserts that each command emits the expected event types.
 28a. Deploy & smoke. API endpoints arrive in P5, so for now this checks that migrations for any new tables apply on Azure.
 
+*Status 2026-11-23: tasks 18–28 done* (branch `p3-application`; including 23a, 25a and 27a); every task has integration tests through the real MediatR pipeline on SQL Server, plus a mutation check. **28a (deploy & smoke) is pending your approval** to push and run deploy.yml. New in this phase: the AddPostingLastEnqueuedAt migration, and D-66 to D-68.
+
 **P4 – Infrastructure**
 29. `LocalFileSystemStorageService` (plain `/uploads/...` URL) and `AzureBlobStorageService` (**account-key SAS**, 1h, read-only, single blob). Provider switch, filename sanitiser, extension and MIME allowlist, 50 MB limit. *Verify:* unit tests, plus a LocalFileSystem integration test. The AzureBlob SAS (downloads the file, 1h expiry) is checked against the real storage account in the post-deploy smoke test (D-42).
 29s. **[Stretch]** Magic-byte sniffing, HMAC-signed expiring local URLs, and a User Delegation SAS via managed identity.
