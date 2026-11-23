@@ -144,7 +144,12 @@ public sealed class IdentityAndDashboardTests(SqlServerDatabaseFixture db)
         await using var factory = new ClaimsApiFactory(db); // Testing environment, no password
         using var client = factory.CreateClient();
 
-        (await client.GetAsync(new Uri("/hangfire", UriKind.Relative))).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        // Not mapped: the path is just an unknown route, which the API's bearer fallback policy answers with
+        // 401 Bearer (P5). Never the dashboard, and never a Basic prompt that would invite a password.
+        var response = await client.GetAsync(new Uri("/hangfire", UriKind.Relative));
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        response.Headers.WwwAuthenticate.Single().Scheme.ShouldBe("Bearer");
+        (await response.Content.ReadAsStringAsync()).ShouldNotContain("Hangfire Dashboard");
     }
 
     [Theory]

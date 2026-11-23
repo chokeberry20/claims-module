@@ -464,3 +464,41 @@ Branch `p4-infrastructure` (from `main` = `c163a53`). Build + all tests right be
   - **Unreliable first probes.** The exporter stores failed batches on disk per instrumentation key and resends them later. Earlier test runs with a dead endpoint had left batches behind, and the AI's fake endpoint at first answered every batch with `itemsReceived: 1`. Results changed from run to run until the exporter's own diagnostics (EventSource) showed "stored offline for retry". The tests now use a fresh key per run and correct item counts.
   - **Assertions that sampling broke.** The distro's rate-limited sampler doesn't sample the first request after start-up, so "SQL inside a request is recorded" failed every time the tests ran together. The test now repeats the request until one is sampled, and asserts that request SQL follows its request's sampling decision.
   - One test run hung once and was stopped; it didn't recur in later runs with `--blame-hang-timeout`.
+
+**P5 tasks 32–34: authentication, the error pipeline, controllers (D-72).**
+- **Built:**
+  - JWT Bearer validation: the token's organisation must be this deployment's, and `ICurrentUser` comes from the token.
+  - A fallback policy that requires an authenticated caller everywhere except sign-in, the demo user list, health, Swagger and the dashboard.
+  - The S10.4 error body for every failure, the correlation middleware, Idempotency-Key header handling, and a sign-in rate limit.
+  - Swagger with Bearer auth and the Idempotency-Key header.
+  - Controllers for claims, reserves, documents, reference data, policies and auth.
+- **Spec contract gaps found while mapping S10 to endpoints, and closed:**
+  - the `policyId` list filter;
+  - `perilCategory` on cause codes;
+  - documents and recent audit entries on the claim detail;
+  - claim statuses grouped with their next statuses.
+- **Plan deviation (D-72):** no ASP.NET role policies. Role minimums stay in one place, `[RequiresRole]` in the MediatR pipeline.
+- **Tests:** an end-to-end scenario over HTTP with a real Hangfire server. It covers sign-in → FNOL → a 50k reserve → handler approve gives 403 → supervisor approves → the GL job posts it → GL_POSTING_SIMULATED in the audit log → upload and download → close checklist → close (CC-04 justification) → handler reopen 403 → supervisor reopen. It passed on its first run. Contract tests cover the following:
+  - 401 with a Bearer challenge;
+  - forged, other-organisation, expired and role-less tokens;
+  - 422 field errors and codes, malformed JSON and unknown enum names;
+  - 404, 403 and 409;
+  - Idempotency-Key replay (same 201, one claim), conflict and malformed keys;
+  - correlation ids in headers, error bodies and audit entries;
+  - the sign-in rate limit;
+  - the Swagger document;
+  - the claim-status list and the policy and date filters.
+- **Found and fixed before commit:**
+  1. **A regression caught by the P4 tests:** the fallback policy also applies to requests that match no endpoint, so the Hangfire dashboard (middleware after `UseAuthorization`) answered with a Bearer challenge instead of its Basic prompt. The dashboard now runs before authentication. The "not mapped" case now gives 401 Bearer instead of 404, and its test was updated to say so.
+  2. Error results returned as `ObjectResult` lost their `application/problem+json` content type to the controllers' `[Produces("application/json")]`. They now go through the same writer as the exception handler.
+  3. Analyzer errors (CA1001, CA1305) fixed as they came up.
+- **Test runs hung (not fully resolved):**
+  - Twice a run hung with no output, and `--blame-hang-timeout` named the in-host telemetry test.
+  - Reproduction:
+    - after `Telemetry_is_on_with_a_connection_string` (another telemetry-enabled host, created and disposed earlier in the same process) it hung in 2 of 6 and 1 of 4 runs;
+    - with the other preceding test it hung in 0 of 4 runs, and on its own in 0 of 7;
+    - timings show the hang on the host's second request.
+  - Turning Live Metrics off did not change it.
+  - The AI tried to install `dotnet-stack` (a global .NET tool) to read the hung process's stacks; **the install was denied by the permission check**, and the AI did not work around it. Root cause unknown.
+  - **Mitigation:** the run now creates only one telemetry-enabled host. The host-level telemetry checks are one test, and the P4 "telemetry on" test was folded into it. That test has a 120 s timeout, so a recurrence fails instead of hanging CI. In Azure the app runs one host per process. Since then: 5 of 5 API-group runs and the full suite without a hang.
+- **Privacy finding:** the exporter diagnostics showed that test hosts with telemetry on (since P4) sent **Live Metrics pings to `rt.services.visualstudio.com`** with the dummy key `00000000-…`, so test runs made outbound calls to a Microsoft service. Nothing else was sent: the ingestion endpoint was a dead or local address. Tests now switch Live Metrics off (`Telemetry:EnableLiveMetrics=false`).

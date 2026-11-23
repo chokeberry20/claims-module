@@ -18,7 +18,9 @@ public sealed class ClaimsProfile : Profile
         CreateMap<Claim, ClaimDetailDto>()
             .ForMember(d => d.ClaimId, o => o.MapFrom(c => c.Id))
             .ForMember(d => d.ClaimNumber, o => o.MapFrom(c => c.ClaimNumber.Value))
-            .ForMember(d => d.Reserves, o => o.Ignore());
+            .ForMember(d => d.Reserves, o => o.Ignore())
+            .ForMember(d => d.Documents, o => o.Ignore())
+            .ForMember(d => d.RecentAuditEntries, o => o.Ignore());
 
         CreateMap<LossEvent, LossEventDto>()
             .ForMember(d => d.CauseOfLossName, o => o.Ignore());

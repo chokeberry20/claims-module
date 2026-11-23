@@ -3,6 +3,9 @@
   <PropertyGroup>
     <RootNamespace>ClaimsModule.API</RootNamespace>
     <UserSecretsId>claimsmodule-api-7c1d2b8e</UserSecretsId>
+    <!-- XML comments feed the Swagger descriptions; not every public member needs one. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\ClaimsModule.Application\ClaimsModule.Application.csproj" />
@@ -10,6 +13,7 @@
     <ProjectReference Include="..\ClaimsModule.Infrastructure\ClaimsModule.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Azure.Monitor.OpenTelemetry.AspNetCore" />
     <PackageReference Include="Swashbuckle.AspNetCore" />

@@ -1,4 +1,6 @@
+using ClaimsModule.Application.Audit;
 using ClaimsModule.Application.Common.Exceptions;
+using ClaimsModule.Application.Documents;
 using ClaimsModule.Application.Common.Messaging;
 using ClaimsModule.Domain.Claims;
 using ClaimsModule.Domain.Reserves;
@@ -115,6 +117,12 @@ public sealed record ClaimDetailDto
     public IReadOnlyList<RiskObjectDto> RiskObjects { get; init; } = [];
     public IReadOnlyList<ValidationIssueDto> ValidationIssues { get; init; } = [];
     public ReserveTotalsDto Reserves { get; init; } = new();
+
+    /// <summary>The claim's documents, each with a fresh read link (S10.1).</summary>
+    public IReadOnlyList<DocumentDto> Documents { get; init; } = [];
+
+    /// <summary>The newest audit entries (S10.1 "recent audit log entries"); the full log is paginated at /audit.</summary>
+    public IReadOnlyList<AuditLogEntryDto> RecentAuditEntries { get; init; } = [];
 }
 
 // ------------------------------------------------------------------ read side
@@ -126,6 +134,7 @@ public sealed record ClaimListFilter(
     Guid? AssignedHandlerId,
     string? AssignedHandler,
     string? CauseOfLossCode,
+    Guid? PolicyId,
     string? Search,
     ClaimSortField SortBy,
     bool Descending,
@@ -161,6 +170,7 @@ public sealed record ListClaimsQuery : IQuery<PagedResult<ClaimSummaryDto>>
     public Guid? AssignedHandlerId { get; init; }
     public string? AssignedHandler { get; init; }
     public string? CauseOfLossCode { get; init; }
+    public Guid? PolicyId { get; init; }
     public string? Search { get; init; }
     public ClaimSortField SortBy { get; init; } = ClaimSortField.ReportedDate;
     public bool Descending { get; init; } = true;
@@ -196,6 +206,7 @@ internal sealed class ListClaimsHandler(IClaimReader reader) : IRequestHandler<L
                 request.AssignedHandlerId,
                 Clean(request.AssignedHandler),
                 Clean(request.CauseOfLossCode),
+                request.PolicyId,
                 Clean(request.Search),
                 request.SortBy,
                 request.Descending,
@@ -209,8 +220,20 @@ internal sealed class ListClaimsHandler(IClaimReader reader) : IRequestHandler<L
 /// <summary>GET /api/claims/{id}.</summary>
 public sealed record GetClaimQuery(Guid ClaimId) : IQuery<ClaimDetailDto>;
 
-internal sealed class GetClaimHandler(IClaimReader reader) : IRequestHandler<GetClaimQuery, ClaimDetailDto>
+internal sealed class GetClaimHandler(IClaimReader reader, IClaimDocumentReader documents, DocumentLinks links, IAuditLogReader auditLog)
+    : IRequestHandler<GetClaimQuery, ClaimDetailDto>
 {
-    public async Task<ClaimDetailDto> Handle(GetClaimQuery request, CancellationToken cancellationToken) =>
-        await reader.GetDetailAsync(request.ClaimId, cancellationToken) ?? throw new NotFoundException("Claim", request.ClaimId);
+    public const int RecentAuditEntryCount = 10;
+
+    public async Task<ClaimDetailDto> Handle(GetClaimQuery request, CancellationToken cancellationToken)
+    {
+        var detail = await reader.GetDetailAsync(request.ClaimId, cancellationToken) ?? throw new NotFoundException("Claim", request.ClaimId);
+        var documentRecords = await documents.ListAsync(request.ClaimId, cancellationToken) ?? [];
+        var recent = await auditLog.ListAsync(request.ClaimId, eventType: null, page: 1, RecentAuditEntryCount, cancellationToken);
+        return detail with
+        {
+            Documents = documentRecords.Select(links.ToDto).ToList(),
+            RecentAuditEntries = recent?.Items ?? [],
+        };
+    }
 }

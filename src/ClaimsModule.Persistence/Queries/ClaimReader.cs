@@ -48,6 +48,11 @@ internal sealed class ClaimReader(ClaimsDbContext context, IMapper mapper) : ICl
             claims = claims.Where(c => c.LossEvent.CauseOfLossCode == code);
         }
 
+        if (filter.PolicyId is { } policyId)
+        {
+            claims = claims.Where(c => c.PolicyId == policyId);
+        }
+
         if (filter.Search is { } search)
         {
             // S10.1: partial claim number, policy number or client name, as case-insensitive substrings.

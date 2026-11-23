@@ -1,6 +1,7 @@
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
 using ClaimsModule.Application.ReferenceData;
+using ClaimsModule.Domain.ReferenceData;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClaimsModule.Persistence.Queries;
@@ -8,10 +9,11 @@ namespace ClaimsModule.Persistence.Queries;
 /// <summary>Reference data reads: AsNoTracking projections through the Application AutoMapper profiles.</summary>
 internal sealed class ReferenceDataReader(ClaimsDbContext context, IMapper mapper) : IReferenceDataReader
 {
-    public async Task<IReadOnlyList<CauseOfLossCodeDto>> ListCauseOfLossCodesAsync(bool includeInactive, CancellationToken cancellationToken) =>
+    public async Task<IReadOnlyList<CauseOfLossCodeDto>> ListCauseOfLossCodesAsync(bool includeInactive, PerilCategory? perilCategory, CancellationToken cancellationToken) =>
         await context.CauseOfLossCodes
             .AsNoTracking()
             .Where(c => includeInactive || c.IsActive)
+            .Where(c => perilCategory == null || c.PerilCategory == perilCategory)
             .OrderBy(c => c.SortOrder).ThenBy(c => c.Code)
             .ProjectTo<CauseOfLossCodeDto>(mapper.ConfigurationProvider)
             .ToListAsync(cancellationToken);

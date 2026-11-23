@@ -15,6 +15,7 @@ namespace ClaimsModule.API.Hosting;
 internal static class Telemetry
 {
     public const string ConnectionStringKey = "APPLICATIONINSIGHTS_CONNECTION_STRING";
+    public const string LiveMetricsKey = "Telemetry:EnableLiveMetrics";
 
     public static IServiceCollection AddClaimsTelemetry(this IServiceCollection services, IConfiguration configuration)
     {
@@ -23,7 +24,9 @@ internal static class Telemetry
             return services;
         }
 
-        services.AddOpenTelemetry().UseAzureMonitor();
+        // Live Metrics streams to its own Microsoft endpoint; tests switch it off (no outbound calls).
+        var liveMetrics = configuration.GetValue(LiveMetricsKey, defaultValue: true);
+        services.AddOpenTelemetry().UseAzureMonitor(options => options.EnableLiveMetrics = liveMetrics);
         services.ConfigureOpenTelemetryTracerProvider(tracing => tracing
             .AddSource(JobTelemetry.ActivitySourceName)
             .AddProcessor(new BackgroundSqlNoiseFilter()));

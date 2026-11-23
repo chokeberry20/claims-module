@@ -262,6 +262,9 @@ resource api 'Microsoft.Web/sites@2024-04-01' = {
         // running process never sees its files replaced mid-flight (deploy-timing incident, P3). Nothing
         // writes to the app folder: logs go to stdout, documents to Blob storage, temp files to /tmp.
         { name: 'WEBSITE_RUN_FROM_PACKAGE', value: '1' }
+        // The App Service front end adds X-Forwarded-For/-Proto; the app is reachable only through it, so
+        // the client address the sign-in rate limit partitions on is the forwarded one (P5, D-72).
+        { name: 'ASPNETCORE_FORWARDEDHEADERS_ENABLED', value: 'true' }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
         { name: 'Cors__AllowedOrigins__0', value: frontendOrigin }
         { name: 'Storage__Provider', value: 'AzureBlob' }

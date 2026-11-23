@@ -17,31 +17,17 @@ public sealed class TenancyOptions
 
 /// <summary>
 /// The tenant from configuration. Startup checks that it matches the seeded organisation, so a
-/// typo can't silently show an empty database. From P5 the JWT `org` claim is the source.
+/// typo can't silently show an empty database. A bearer token must carry the same organisation (D-72).
 /// </summary>
 internal sealed class ConfiguredTenantProvider(IOptions<TenancyOptions> options) : ITenantProvider
 {
     public Guid OrganisationId { get; } = options.Value.OrganisationId;
 }
 
-/// <summary>Walking-skeleton caller: unauthenticated until JWT auth arrives in P5 (task 32).</summary>
-internal sealed class AnonymousCurrentUser : ICurrentUser
-{
-    public bool IsAuthenticated => false;
-
-    public Guid? UserId => null;
-
-    public string? DisplayName => null;
-
-    public UserRole? Role => null;
-
-    public Actor GetActor() => throw new InvalidOperationException("No authenticated user: authentication is added in P5.");
-}
-
 /// <summary>
 /// The request correlation id (S14.2): the incoming <c>X-Correlation-Id</c> header if it is a
-/// GUID, otherwise a new one, fixed for the rest of the request. P5 task 33 adds the middleware
-/// that echoes it on responses.
+/// GUID, otherwise a new one, fixed for the rest of the request. <see cref="CorrelationMiddleware"/>
+/// echoes it on the response and adds it to the request's logs.
 /// </summary>
 internal sealed class RequestCorrelationContext(IHttpContextAccessor accessor) : ICorrelationContext
 {
@@ -53,11 +39,7 @@ internal sealed class RequestCorrelationContext(IHttpContextAccessor accessor) :
         Guid.TryParse(accessor.HttpContext?.Request.Headers[HeaderName].ToString(), out var fromHeader) ? fromHeader : Guid.NewGuid();
 }
 
-/// <summary>
-/// Placeholder until the MediatR dispatcher arrives in P3. It <b>fails loudly</b> if any domain
-/// event reaches it, so audit entries can never be dropped silently. The walking skeleton has no
-/// endpoints that raise events.
-/// </summary>
+/// <summary>Host-level options and services: storage, tenancy, correlation, identity configuration, CORS.</summary>
 internal static class HostingServiceCollectionExtensions
 {
     public const string CorsPolicy = "frontend";
@@ -84,11 +66,9 @@ internal static class HostingServiceCollectionExtensions
 
         services.AddHttpContextAccessor();
         services.AddSingleton<ITenantProvider, ConfiguredTenantProvider>();
-        services.AddScoped<ICurrentUser, AnonymousCurrentUser>();
         services.AddScoped<ICorrelationContext, RequestCorrelationContext>();
         services.Configure<ClaimsModule.Infrastructure.Identity.DemoUsersOptions>(configuration.GetSection(ClaimsModule.Infrastructure.Identity.DemoUsersOptions.SectionName));
         services.Configure<ClaimsModule.Infrastructure.Identity.DemoUserPasswordsOptions>(configuration.GetSection(ClaimsModule.Infrastructure.Identity.DemoUserPasswordsOptions.SectionName));
-        services.Configure<ClaimsModule.Infrastructure.Identity.JwtOptions>(configuration.GetSection(ClaimsModule.Infrastructure.Identity.JwtOptions.SectionName));
         services.Configure<HangfireDashboardOptions>(configuration.GetSection(HangfireDashboardOptions.SectionName));
         services.Configure<ClaimsModule.Application.Abstractions.Jobs.GlPostingOptions>(configuration.GetSection(ClaimsModule.Application.Abstractions.Jobs.GlPostingOptions.SectionName));
 

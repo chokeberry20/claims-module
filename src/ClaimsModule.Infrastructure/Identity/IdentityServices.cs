@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using ClaimsModule.Application.Abstractions;
@@ -47,7 +46,12 @@ public interface IDemoUserAuthenticator
     DirectoryUser? Authenticate(string userName, string password);
 
     IReadOnlyList<DirectoryUser> ListUsers();
+
+    /// <summary>The demo accounts with their user names (for the UI's role switcher). Never includes passwords.</summary>
+    IReadOnlyList<DemoAccount> ListAccounts();
 }
+
+public sealed record DemoAccount(Guid UserId, string UserName, string DisplayName, UserRole Role);
 
 /// <summary>The configuration-backed user directory (replaces the P3 placeholder) and the demo authenticator.</summary>
 internal sealed class ConfiguredUserDirectory(IOptions<DemoUsersOptions> users, IOptions<DemoUserPasswordsOptions> passwords)
@@ -57,6 +61,9 @@ internal sealed class ConfiguredUserDirectory(IOptions<DemoUsersOptions> users, 
         Task.FromResult(users.Value.Users.Where(u => u.Id == userId).Select(ToDirectoryUser).FirstOrDefault());
 
     public IReadOnlyList<DirectoryUser> ListUsers() => users.Value.Users.Select(ToDirectoryUser).ToList();
+
+    public IReadOnlyList<DemoAccount> ListAccounts() =>
+        users.Value.Users.Select(u => new DemoAccount(u.Id, u.UserName, u.DisplayName, u.Role)).ToList();
 
     public DirectoryUser? Authenticate(string userName, string password)
     {
@@ -109,6 +116,15 @@ public sealed class JwtOptions
     }
 }
 
+/// <summary>The claim names in the bearer token (short JWT names; inbound claim mapping is off in the API).</summary>
+public static class TokenClaims
+{
+    public const string Subject = JwtRegisteredClaimNames.Sub;
+    public const string Name = JwtRegisteredClaimNames.Name;
+    public const string Role = "role";
+    public const string Organisation = "org";
+}
+
 public sealed record IssuedToken(string AccessToken, DateTimeOffset ExpiresAt, DirectoryUser User);
 
 public interface IJwtTokenIssuer
@@ -119,8 +135,6 @@ public interface IJwtTokenIssuer
 /// <summary>Issues the HS256 bearer token with sub, name, role and org claims (D-32).</summary>
 internal sealed class JwtTokenIssuer(IOptions<JwtOptions> options, ITenantProvider tenant, TimeProvider clock) : IJwtTokenIssuer
 {
-    public const string OrganisationClaim = "org";
-
     public IssuedToken Issue(DirectoryUser user)
     {
         var settings = options.Value;
@@ -136,10 +150,10 @@ internal sealed class JwtTokenIssuer(IOptions<JwtOptions> options, ITenantProvid
             SigningCredentials = new SigningCredentials(settings.CreateSigningKey(), SecurityAlgorithms.HmacSha256),
             Claims = new Dictionary<string, object>
             {
-                [JwtRegisteredClaimNames.Sub] = user.UserId.ToString(),
-                [JwtRegisteredClaimNames.Name] = user.DisplayName,
-                [ClaimTypes.Role] = user.Role.ToString(),
-                [OrganisationClaim] = tenant.OrganisationId.ToString(),
+                [TokenClaims.Subject] = user.UserId.ToString(),
+                [TokenClaims.Name] = user.DisplayName,
+                [TokenClaims.Role] = user.Role.ToString(),
+                [TokenClaims.Organisation] = tenant.OrganisationId.ToString(),
             },
         });
         return new IssuedToken(token, expires, user);

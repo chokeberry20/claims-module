@@ -58,7 +58,7 @@ public sealed record PolicyCoverageDto
 /// <summary>Read-only reference data access (no tracking, projections). Implemented in Persistence.</summary>
 public interface IReferenceDataReader
 {
-    Task<IReadOnlyList<CauseOfLossCodeDto>> ListCauseOfLossCodesAsync(bool includeInactive, CancellationToken cancellationToken);
+    Task<IReadOnlyList<CauseOfLossCodeDto>> ListCauseOfLossCodesAsync(bool includeInactive, PerilCategory? perilCategory, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<ClaimStatusTransitionDto>> ListStatusTransitionsAsync(CancellationToken cancellationToken);
 
@@ -69,14 +69,17 @@ public interface IReferenceDataReader
 
 // ------------------------------------------------------------------ queries
 
-/// <summary>GET /api/reference/cause-of-loss-codes. Inactive codes are hidden unless asked for (BR-C-05).</summary>
-public sealed record GetCauseOfLossCodesQuery(bool IncludeInactive = false) : IQuery<IReadOnlyList<CauseOfLossCodeDto>>;
+/// <summary>
+/// GET /api/reference/cause-of-loss-codes, optionally for one peril category (S10.3, B3.3.4). Inactive
+/// codes are hidden unless asked for (BR-C-05).
+/// </summary>
+public sealed record GetCauseOfLossCodesQuery(bool IncludeInactive = false, PerilCategory? PerilCategory = null) : IQuery<IReadOnlyList<CauseOfLossCodeDto>>;
 
 internal sealed class GetCauseOfLossCodesHandler(IReferenceDataReader reader)
     : IRequestHandler<GetCauseOfLossCodesQuery, IReadOnlyList<CauseOfLossCodeDto>>
 {
     public Task<IReadOnlyList<CauseOfLossCodeDto>> Handle(GetCauseOfLossCodesQuery request, CancellationToken cancellationToken) =>
-        reader.ListCauseOfLossCodesAsync(request.IncludeInactive, cancellationToken);
+        reader.ListCauseOfLossCodesAsync(request.IncludeInactive, request.PerilCategory, cancellationToken);
 }
 
 /// <summary>GET /api/reference/claim-statuses: the allowed transitions, read from the database table (FR-27).</summary>
@@ -87,6 +90,26 @@ internal sealed class GetClaimStatusTransitionsHandler(IReferenceDataReader read
 {
     public Task<IReadOnlyList<ClaimStatusTransitionDto>> Handle(GetClaimStatusTransitionsQuery request, CancellationToken cancellationToken) =>
         reader.ListStatusTransitionsAsync(cancellationToken);
+}
+
+/// <summary>One claim status and the statuses it can move to (S10.3 "status values with their valid next-status transitions").</summary>
+public sealed record ClaimStatusDto(ClaimStatus Status, IReadOnlyList<ClaimStatusTransitionDto> NextStatuses);
+
+/// <summary>
+/// GET /api/reference/claim-statuses: every status, in lifecycle order, with its allowed transitions from
+/// the ClaimStatusTransitions table (FR-27). Terminal statuses are listed with no next statuses.
+/// </summary>
+public sealed record GetClaimStatusesQuery : IQuery<IReadOnlyList<ClaimStatusDto>>;
+
+internal sealed class GetClaimStatusesHandler(IReferenceDataReader reader) : IRequestHandler<GetClaimStatusesQuery, IReadOnlyList<ClaimStatusDto>>
+{
+    public async Task<IReadOnlyList<ClaimStatusDto>> Handle(GetClaimStatusesQuery request, CancellationToken cancellationToken)
+    {
+        var transitions = await reader.ListStatusTransitionsAsync(cancellationToken);
+        return Enum.GetValues<ClaimStatus>()
+            .Select(status => new ClaimStatusDto(status, transitions.Where(t => t.FromStatus == status).OrderBy(t => t.ToStatus).ToList()))
+            .ToList();
+    }
 }
 
 /// <summary>GET /api/policies?search= : policy number or client name, contains-match (S10.3, FR-14).</summary>

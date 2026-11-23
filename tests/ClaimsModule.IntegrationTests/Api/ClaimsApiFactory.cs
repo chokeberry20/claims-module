@@ -12,6 +12,11 @@ namespace ClaimsModule.IntegrationTests.Api;
 internal sealed class ClaimsApiFactory(SqlServerDatabaseFixture db, IReadOnlyDictionary<string, string?>? overrides = null)
     : WebApplicationFactory<Program>
 {
+    /// <summary>Test-only values (not secrets): every demo user signs in with `{userName}-test-password`.</summary>
+    public const string SigningKey = "integration-tests-signing-key-0123456789abcdef";
+
+    public static string PasswordFor(string userName) => $"{userName}-test-password";
+
     public string StorageRoot { get; } = Path.Combine(Path.GetTempPath(), "claims-tests", Guid.NewGuid().ToString("N"));
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -22,6 +27,14 @@ internal sealed class ClaimsApiFactory(SqlServerDatabaseFixture db, IReadOnlyDic
         builder.UseSetting("Storage:Provider", "LocalFileSystem");
         builder.UseSetting("Hangfire:ServerEnabled", "false"); // job tests start their own server
         builder.UseSetting("Storage:LocalFileSystem:RootPath", StorageRoot);
+        builder.UseSetting("Jwt:SigningKey", SigningKey);
+        builder.UseSetting("RateLimits:SignInPerMinute", "1000");
+        builder.UseSetting("Telemetry:EnableLiveMetrics", "false"); // no calls to the Live Metrics service from tests
+        foreach (var user in new[] { "handler1", "handler2", "supervisor1", "manager1" })
+        {
+            builder.UseSetting($"DemoUserPasswords:{user}", PasswordFor(user));
+        }
+
         foreach (var (key, value) in overrides ?? new Dictionary<string, string?>())
         {
             builder.UseSetting(key, value);

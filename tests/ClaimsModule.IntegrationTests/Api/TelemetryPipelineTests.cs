@@ -21,34 +21,14 @@ namespace ClaimsModule.IntegrationTests.Api;
 [Collection(SqlServerTestGroup.Name)]
 public sealed partial class TelemetryPipelineTests(SqlServerDatabaseFixture db)
 {
-    [Fact]
-    public async Task The_real_exporter_sends_the_warm_up_line_and_request_sql_but_no_parentless_sql()
-    {
-        // The real Azure Monitor exporter against a local fake ingestion endpoint. With the warm-up
-        // before RunAsync (P4) the OpenTelemetry pipeline saw the line but the exporter never sent it.
-        await using var ingestion = new FakeIngestionEndpoint();
-        await using var factory = new ClaimsApiFactory(db, new Dictionary<string, string?>
-        {
-            // A fresh key per run: the exporter keeps failed batches on disk per key and resends them later.
-            [Telemetry.ConnectionStringKey] = $"InstrumentationKey={Guid.NewGuid()};IngestionEndpoint={ingestion.BaseUrl}",
-            [StartupWarmUp.SettingKey] = "true", // its SQL has no parent operation
-        });
-        using var client = factory.CreateClient();
-        (await client.GetAsync(new Uri("/health", UriKind.Relative))).StatusCode.ShouldBe(HttpStatusCode.OK);
-
-        // Wait while the host runs: batches are exported on a schedule; shutdown flushing is unreliable.
-        // Request SQL may be sampled out (rate-limited sampler), so only the warm-up line is awaited; the
-        var received = await ingestion.WaitForAsync(
-            body => body.Contains("Startup warm-up: database health Healthy", StringComparison.Ordinal),
-            TimeSpan.FromSeconds(30));
-
-        // test below checks recorded vs unrecorded SQL in the host itself.
-        received.ShouldContain("Startup warm-up: database health Healthy");
-        SqlDependencies(received).ShouldAllBe(d => d.HasParent);
-    }
-
-    [Fact]
-    public async Task In_the_host_parentless_sql_is_unrecorded_and_sql_inside_a_request_is_recorded()
+    /// <summary>
+    /// One telemetry-enabled host for every host-level check. Creating a second telemetry-enabled host in
+    /// the same test process, after another one had been disposed, sometimes hung its second request (P5,
+    /// root cause not found; see ai-log). A single host per process is also how the app runs in Azure.
+    /// The timeout turns any recurrence into a failure instead of a hung test run.
+    /// </summary>
+    [Fact(Timeout = 120_000)]
+    public async Task With_telemetry_on_the_warm_up_line_is_exported_and_only_sql_inside_operations_is_recorded()
     {
         // An independent listener: it sees every SQL activity as it stops, including unrecorded ones the
         // SDK no longer passes to processors. PropagationData never upgrades the SDK's sampling decision.
@@ -67,22 +47,6 @@ public sealed partial class TelemetryPipelineTests(SqlServerDatabaseFixture db)
         };
         ActivitySource.AddActivityListener(listener);
 
-        await using (var factory = new ClaimsApiFactory(db, new Dictionary<string, string?>
-        {
-            [Telemetry.ConnectionStringKey] = $"InstrumentationKey={Guid.NewGuid()};IngestionEndpoint=https://127.0.0.1:1/",
-            [StartupWarmUp.SettingKey] = "true", // the warm-up's SQL has no parent
-        }))
-        {
-            using var client = factory.CreateClient();
-            // SQL inside requests. The distro's rate-limited sampler starts with no budget, so the first
-            // request after start-up isn't sampled: repeat until one is (about a second).
-            for (var attempt = 0; attempt < 40 && !AnyRecordedRequestSql(); attempt++)
-            {
-                (await client.GetAsync(new Uri("/health", UriKind.Relative))).StatusCode.ShouldBe(HttpStatusCode.OK);
-                await Task.Delay(TimeSpan.FromMilliseconds(250));
-            }
-        }
-
         bool AnyRecordedRequestSql()
         {
             lock (stopped)
@@ -91,6 +55,39 @@ public sealed partial class TelemetryPipelineTests(SqlServerDatabaseFixture db)
             }
         }
 
+        // The real Azure Monitor exporter against a local fake ingestion endpoint. With the warm-up before
+        // RunAsync (P4) the OpenTelemetry pipeline saw the line but the exporter never sent it.
+        await using var ingestion = new FakeIngestionEndpoint();
+        string received;
+        await using (var factory = new ClaimsApiFactory(db, new Dictionary<string, string?>
+        {
+            // A fresh key per run: the exporter keeps failed batches on disk per key and resends them later.
+            [Telemetry.ConnectionStringKey] = $"InstrumentationKey={Guid.NewGuid()};IngestionEndpoint={ingestion.BaseUrl}",
+            [StartupWarmUp.SettingKey] = "true", // the warm-up's SQL has no parent operation
+        }))
+        {
+            using var client = factory.CreateClient();
+            factory.Services.GetService<TracerProvider>().ShouldNotBeNull(); // telemetry is on with a connection string
+
+            // SQL inside requests. The distro's rate-limited sampler starts with no budget, so the first
+            // request after start-up isn't sampled: repeat until one is (about a second).
+            for (var attempt = 0; attempt < 40 && !AnyRecordedRequestSql(); attempt++)
+            {
+                (await client.GetAsync(new Uri("/health", UriKind.Relative))).StatusCode.ShouldBe(HttpStatusCode.OK);
+                await Task.Delay(TimeSpan.FromMilliseconds(250));
+            }
+
+            // Batches are exported on a schedule while the host runs; flushing at shutdown is unreliable.
+            received = await ingestion.WaitForAsync(
+                body => body.Contains("Startup warm-up: database health Healthy", StringComparison.Ordinal),
+                TimeSpan.FromSeconds(30));
+        }
+
+        // 1. The warm-up line reaches App Insights, and no parentless SQL is ever sent.
+        received.ShouldContain("Startup warm-up: database health Healthy");
+        SqlDependencies(received).ShouldAllBe(d => d.HasParent);
+
+        // 2. In the host: parentless SQL is unrecorded; request SQL is left to its request's sampling.
         List<Activity> sql;
         lock (stopped)
         {
