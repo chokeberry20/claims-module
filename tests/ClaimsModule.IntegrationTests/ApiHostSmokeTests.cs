@@ -111,9 +111,9 @@ public sealed class ApiHostSmokeTests(SqlServerDatabaseFixture db)
         // factory still reads it, and under CPU load the test saw ObjectDisposedException instead
         // (flaky; reproduced in 1 of 3 runs with every core busy, see ai-log).
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["Tenancy:OrganisationId"] = Guid.NewGuid().ToString() })
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Tenancy:OrganisationId"] = Guid.NewGuid().ToString(), ["Storage:Provider"] = "LocalFileSystem" })
             .Build();
-        using var services = new ServiceCollection().AddClaimsHosting(configuration).BuildServiceProvider();
+        using var services = new ServiceCollection().AddClaimsHosting(configuration, TestEnvironment("Testing")).BuildServiceProvider();
 
         var validator = services.GetRequiredService<IStartupValidator>();
 
@@ -121,12 +121,47 @@ public sealed class ApiHostSmokeTests(SqlServerDatabaseFixture db)
     }
 
     [Fact]
+    public void Startup_refuses_local_document_storage_in_production()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Tenancy:OrganisationId"] = SqlServerDatabaseFixture.OrganisationId.ToString(),
+                ["Storage:Provider"] = "LocalFileSystem",
+            })
+            .Build();
+        using var services = new ServiceCollection().AddClaimsHosting(configuration, TestEnvironment("Production")).BuildServiceProvider();
+
+        Should.Throw<OptionsValidationException>(services.GetRequiredService<IStartupValidator>().Validate)
+            .Message.ShouldContain("LocalFileSystem is not allowed in Production");
+    }
+
+    [Fact]
+    public void Startup_requires_a_blob_connection_string_for_azure_blob_storage()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Tenancy:OrganisationId"] = SqlServerDatabaseFixture.OrganisationId.ToString(),
+                ["Storage:Provider"] = "AzureBlob",
+            })
+            .Build();
+        using var services = new ServiceCollection().AddClaimsHosting(configuration, TestEnvironment("Production")).BuildServiceProvider();
+
+        Should.Throw<OptionsValidationException>(services.GetRequiredService<IStartupValidator>().Validate)
+            .Message.ShouldContain("Storage:AzureBlob:ConnectionString is required");
+    }
+
+    private static Microsoft.Extensions.Hosting.Internal.HostingEnvironment TestEnvironment(string name) =>
+        new() { EnvironmentName = name, ContentRootPath = AppContext.BaseDirectory };
+
+    [Fact]
     public void Startup_validation_passes_for_the_seeded_organisation()
     {
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["Tenancy:OrganisationId"] = SqlServerDatabaseFixture.OrganisationId.ToString() })
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Tenancy:OrganisationId"] = SqlServerDatabaseFixture.OrganisationId.ToString(), ["Storage:Provider"] = "LocalFileSystem" })
             .Build();
-        using var services = new ServiceCollection().AddClaimsHosting(configuration).BuildServiceProvider();
+        using var services = new ServiceCollection().AddClaimsHosting(configuration, TestEnvironment("Testing")).BuildServiceProvider();
 
         Should.NotThrow(services.GetRequiredService<IStartupValidator>().Validate);
     }

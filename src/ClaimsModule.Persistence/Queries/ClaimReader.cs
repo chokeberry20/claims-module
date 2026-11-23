@@ -228,3 +228,23 @@ internal sealed class AuditLogReader(ClaimsDbContext context) : ClaimsModule.App
         return new PagedResult<ClaimsModule.Application.Audit.AuditLogEntryDto>(items, page, pageSize, total);
     }
 }
+
+/// <summary>Document metadata for a claim, newest first (no tracking).</summary>
+internal sealed class ClaimDocumentReader(ClaimsDbContext context) : ClaimsModule.Application.Documents.IClaimDocumentReader
+{
+    public async Task<IReadOnlyList<ClaimsModule.Application.Documents.ClaimDocumentRecord>?> ListAsync(Guid claimId, CancellationToken cancellationToken)
+    {
+        if (!await context.Claims.AnyAsync(c => c.Id == claimId, cancellationToken))
+        {
+            return null;
+        }
+
+        return await context.ClaimDocuments.AsNoTracking()
+            .Where(d => d.ClaimId == claimId)
+            .OrderByDescending(d => d.UploadedAt).ThenByDescending(d => d.Id)
+            .Select(d => new ClaimsModule.Application.Documents.ClaimDocumentRecord(
+                d.Id, d.ClaimId, d.DocumentType, d.DocumentName, d.BlobPath, d.ContentType, d.FileSizeBytes,
+                d.UploadedAt, d.UploadedByUserId, d.UploadedByName, d.Notes))
+            .ToListAsync(cancellationToken);
+    }
+}

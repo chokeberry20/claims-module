@@ -1,6 +1,8 @@
 using ClaimsModule.Application;
 using ClaimsModule.Application.Abstractions;
 using ClaimsModule.Application.Abstractions.Jobs;
+using ClaimsModule.Application.Abstractions.Storage;
+using ClaimsModule.Infrastructure;
 using ClaimsModule.Domain.Common;
 using ClaimsModule.IntegrationTests.Persistence;
 using ClaimsModule.Persistence;
@@ -35,6 +37,13 @@ internal sealed class ApplicationHost : IAsyncDisposable
         services.AddSingleton<ICorrelationContext>(Correlation);
         services.AddPersistence(db.ConnectionString);
         services.AddApplication();
+        services.Configure<StorageOptions>(o =>
+        {
+            o.Provider = StorageProvider.LocalFileSystem;
+            o.LocalFileSystem.RootPath = StorageRoot;
+            o.LocalFileSystem.PublicBaseUrl = "http://localhost:5180/uploads";
+        });
+        services.AddInfrastructure();
         services.AddSingleton<IUserDirectory>(new InMemoryUserDirectory([Handler1, Handler2, Supervisor1, Supervisor2, Manager1]));
         services.AddSingleton<IJobScheduler>(Jobs);
         configure?.Invoke(services);
@@ -49,6 +58,9 @@ internal sealed class ApplicationHost : IAsyncDisposable
     public TestTenantProvider Tenant { get; } = new(SqlServerDatabaseFixture.OrganisationId);
 
     public TestCorrelationContext Correlation { get; } = new();
+
+    /// <summary>Local document storage for this host (a fresh temp folder).</summary>
+    public string StorageRoot { get; } = Path.Combine(Path.GetTempPath(), "claims-tests", Guid.NewGuid().ToString("N"));
 
     /// <summary>Records every enqueued job instead of running it.</summary>
     public RecordingJobScheduler Jobs { get; } = new();

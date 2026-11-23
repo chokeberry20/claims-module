@@ -128,3 +128,21 @@ internal static class HealthResponseWriter
         return httpContext.Response.WriteAsync(JsonSerializer.Serialize(body, Json));
     }
 }
+
+/// <summary>Healthy when the document store is reachable (Blob container exists, or the local folder).
+/// In Azure this also proves the Key Vault reference for the storage connection string resolved (31a).</summary>
+internal sealed class StorageHealthCheck(ClaimsModule.Application.Abstractions.Storage.IStorageService storage) : IHealthCheck
+{
+    public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var result = await storage.CheckAsync(cancellationToken);
+            return result.IsHealthy ? HealthCheckResult.Healthy(result.Description) : HealthCheckResult.Unhealthy(result.Description);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return HealthCheckResult.Unhealthy(ex.GetType().Name + ": " + ex.Message);
+        }
+    }
+}

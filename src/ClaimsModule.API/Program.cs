@@ -1,3 +1,5 @@
+using ClaimsModule.Infrastructure;
+using ClaimsModule.Application.Abstractions.Storage;
 using ClaimsModule.Application;
 using ClaimsModule.API.Hosting;
 using ClaimsModule.Persistence;
@@ -22,15 +24,17 @@ if (string.IsNullOrWhiteSpace(connectionString))
         "ConnectionStrings:ClaimsDb is not configured (appsettings.Development.json locally; Key Vault reference on Azure).");
 }
 
-builder.Services.AddClaimsHosting(builder.Configuration);
+builder.Services.AddClaimsHosting(builder.Configuration, builder.Environment);
 builder.Services.AddPersistence(connectionString);
 builder.Services.AddApplication();
+builder.Services.AddInfrastructure();
 
 // Fail-fast checks: their own short-timeout connection, outside the EF retry strategy.
 builder.Services.AddSingleton(new HealthCheckDatabase(connectionString));
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseHealthCheck>("database", timeout: HealthCheckDatabase.CheckTimeout)
-    .AddCheck<MigrationsHealthCheck>("migrations", timeout: HealthCheckDatabase.CheckTimeout);
+    .AddCheck<MigrationsHealthCheck>("migrations", timeout: HealthCheckDatabase.CheckTimeout)
+    .AddCheck<StorageHealthCheck>("storage", timeout: HealthCheckDatabase.CheckTimeout);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options => options.SwaggerDoc("v1", new OpenApiInfo
@@ -44,6 +48,18 @@ var app = builder.Build();
 
 app.UseSerilogRequestLogging();
 app.UseCors(HostingServiceCollectionExtensions.CorsPolicy);
+
+// Development: the LocalFileSystem provider's plain read links are served from /uploads (D-30).
+var storageOptions = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<StorageOptions>>().Value;
+if (storageOptions.Provider == StorageProvider.LocalFileSystem)
+{
+    Directory.CreateDirectory(storageOptions.LocalFileSystem.RootPath);
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(storageOptions.LocalFileSystem.RootPath),
+        RequestPath = "/uploads",
+    });
+}
 
 // Swagger stays on in every environment: the brief requires it on the deployed backend (B4.3).
 app.UseSwagger();

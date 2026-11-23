@@ -1,5 +1,6 @@
 using ClaimsModule.Application.Abstractions;
 using ClaimsModule.Application.Abstractions.Persistence;
+using ClaimsModule.Application.Abstractions.Storage;
 using ClaimsModule.Domain.Common;
 using ClaimsModule.Persistence.Seed;
 using Microsoft.Extensions.Options;
@@ -78,8 +79,20 @@ internal static class HostingServiceCollectionExtensions
 {
     public const string CorsPolicy = "frontend";
 
-    public static IServiceCollection AddClaimsHosting(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddClaimsHosting(this IServiceCollection services, IConfiguration configuration, IHostEnvironment environment)
     {
+        // Document storage (S13, BR-D-03). Local storage is for development only: Azure always uses
+        // Blob storage, so a misconfigured Production host fails at startup (D-69). A relative local
+        // folder is resolved against the content root.
+        services.AddOptions<StorageOptions>()
+            .Bind(configuration.GetSection(StorageOptions.SectionName))
+            .PostConfigure(o => o.LocalFileSystem.RootPath = Path.GetFullPath(o.LocalFileSystem.RootPath, environment.ContentRootPath))
+            .Validate(o => !(environment.IsProduction() && o.Provider == StorageProvider.LocalFileSystem),
+                "Storage:Provider LocalFileSystem is not allowed in Production; use AzureBlob.")
+            .Validate(o => o.Provider != StorageProvider.AzureBlob || !string.IsNullOrWhiteSpace(o.AzureBlob.ConnectionString),
+                "Storage:AzureBlob:ConnectionString is required when Storage:Provider is AzureBlob.")
+            .ValidateOnStart();
+
         services.AddOptions<TenancyOptions>()
             .Bind(configuration.GetSection(TenancyOptions.SectionName))
             .Validate(o => o.OrganisationId == SeedData.DefaultOrganisationId,

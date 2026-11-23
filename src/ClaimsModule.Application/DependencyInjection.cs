@@ -34,6 +34,7 @@ public static class DependencyInjection
         services.AddScoped<Claims.ClaimValidationContextBuilder>();
         services.AddScoped<Claims.TransitionTable>();
         services.AddScoped<Reserves.ReserveContextLoader>();
+        services.AddScoped<Documents.DocumentLinks>();
         services.AddOptions<Abstractions.Jobs.GlPostingOptions>();
         services.AddAutoMapper(_ => { }, typeof(AssemblyReference).Assembly);
         services.AddValidatorsFromAssembly(typeof(AssemblyReference).Assembly, includeInternalTypes: true);

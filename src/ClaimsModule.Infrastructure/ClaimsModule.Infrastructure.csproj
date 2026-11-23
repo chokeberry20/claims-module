@@ -6,4 +6,10 @@
   <ItemGroup>
     <ProjectReference Include="..\ClaimsModule.Application\ClaimsModule.Application.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Azure.Storage.Blobs" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ClaimsModule.IntegrationTests" />
+  </ItemGroup>
 </Project>
