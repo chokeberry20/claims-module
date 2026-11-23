@@ -178,3 +178,50 @@ Branch `p1-domain` (from `p0-bootstrap`). Each task was committed through a scri
 - **D-44 accepted** and added to "Deliberate deviations", because S10.2 sets no amount limit for reject.
 - **P3 task 25a added** (your requirement): reserve command handlers must enforce BR-C-06 and D-20 through `claim.EnsureReserveChangesAllowed()`, with tests per command.
 - `main` was fast-forwarded to `p1-domain`.
+
+## Session 2 (continued): 2026-11-23: P2 Persistence
+
+Branch `p2-persistence` (from `p1-domain` = `main` at `91037c8`). Every commit went through the verify-and-commit script. The integration tests run against a real SQL Server database (`ClaimsModule_Tests` on `.\SQLEXPRESS01`), dropped and re-migrated once per run.
+
+| Task | Commit | build | tests (Domain + Integration) |
+|---|---|---|---|
+| 11: DbContext, conventions, filters (+ Application abstractions, reference/document domain entities) | `632deee` | 0 / 0 | 306 + 24 passed |
+| 12: all configurations + Initial migration | `ba6b2ed` | 0 / 0 | 306 + 76 passed |
+| 13: HasData seed + compat-level migration | `315fb6b` | 0 / 0 | 306 + 95 passed |
+| 14: interceptors + audit trigger | `607ea86` | 0 / 0 | 306 + 105 passed |
+| 15: claim number generator | `a2be2b8` | 0 / 0 | 306 + 113 passed |
+| 16: UoW, repositories, audit service, DI | `6b188e7` | 0 / 0 | 306 + 124 passed |
+| 17: idempotent SQL script | `36e2d78` | 0 / 0 | 306 + 124 passed |
+
+**Manual verification (real output):**
+- `dotnet ef database update` on a freshly dropped dev database applied 4 migrations without warnings. Result: compat 160, Policies 8, CauseOfLossCodes 11 (10 active), ClaimStatusTransitions 12, 14 tables.
+- The idempotent script ran **twice** on an empty database with `sqlcmd -b -I` (exit 0 both times), with the same counts and a working trigger (`DELETE` → Msg 51000).
+
+**Problems the AI found and fixed during P2.** These are candidates for AI-WORKFLOW.md "AI generated incorrect output":
+1. **Soft-delete interceptor bug, caught by its own test.** The first version set `entry.State = Modified` for soft deletes. That marks *every* column modified, rewriting the whole row, and the tenant guard rejected it ("OrganisationId cannot be changed"). Fix: Deleted → Unchanged, then set only `IsDeleted` and `DeletedAt`.
+2. **A no-op concurrency touch, caught during design.** P1's `Claim.RecordReserveActivity()` changed only `IsSlaBreached` (usually already false). EF would see no change, issue no UPDATE and not bump RowVer, so the cross-aggregate concurrency guard from PLAN §3 silently didn't work. Fix: it now sets the persisted `LastReserveActivityAt`. A test shows that reserve activity versus a concurrent claim edit gives a ConcurrencyException.
+3. **The key-generation pitfall, predicted and then proved.** NEWSEQUENTIALID plus EF value generation would make a new child of a loaded aggregate look like an existing row. The configuration uses `ValueGeneratedNever`. The mutation test reproduced the exact failure: "expected to affect 1 row(s), but actually affected 0".
+4. **EF migration warning was acted on.** The compat-level `ALTER DATABASE` (non-transactional) sat inside `Initial`. EF warned that the migration could be left half-applied, so it was moved into its own migration.
+5. **The idempotent script was broken, found only by running it.** EF wraps custom SQL in `IF NOT EXISTS … BEGIN … END`, where `CREATE TRIGGER` isn't allowed. `dotnet ef database update` had worked, which hid the problem. Fix: `EXEC(N'…')`. A second failure (Msg 1934) came from `sqlcmd` defaulting to QUOTED_IDENTIFIER OFF, which the filtered index needs. That is documented in `db/scripts/README.md` (`-I`).
+6. **The HOLDLOCK mutation went undetected at first, reported honestly.**
+   - Removing HOLDLOCK did *not* fail the 50-concurrent test: once a year's row exists, the UPDATE path is atomic anyway.
+   - The AI added a test aimed at the first-insert race. Its first version was **wrong**: 160 allocators exceeded SqlClient's default Max Pool Size of 100 and deadlocked against a blocking `Barrier` (2-minute timeouts, failing even *with* HOLDLOCK). It was fixed to 80 allocators with an async gate.
+   - Final evidence: with HOLDLOCK, 3/3 green. Without HOLDLOCK, 2/3 runs failed with `Violation of PRIMARY KEY constraint 'PK_ClaimNumberSequences'`. Detection is **probabilistic**, not deterministic.
+7. **Stale test output after a failed build, twice.** `dotnet test --no-build` printed an old green summary right under a compile error. The AI disregarded it both times and re-ran after fixing. The commit script always rebuilds first, so stale results can't be committed.
+8. **Analyzer and namespace fixes.** CA1822, CA1711 (the `…Collection` suffix) and a justified CA1001 suppression (disposed in `IAsyncLifetime`). The new `IntegrationTests.Persistence` namespace hid `ClaimsModule.Persistence` in `LayerDependencyTests`, fixed with `global::`.
+
+**Mutation checks in P2** (all restored and verified with `cmp`):
+
+| Mutation | Result |
+|---|---|
+| `ValueGeneratedNever` removed | Add-child test failed (UPDATE affected 0 rows), plus the model key tests and the root-stamping test |
+| HOLDLOCK removed | Probabilistic: 2 of 3 runs failed (see item 6) |
+
+**New decisions D-51…D-59** are in DECISIONS.md. D-51 is listed as a deliberate deviation. Follow-ups were added to PLAN:
+- **P2.5 task 17f** (D-56, D-57): the least-privilege app DB user with DENY UPDATE/DELETE on the audit log, and the retrying execution strategy.
+- **P3 task 23a** (D-59): also validate transitions against the database table.
+
+**Deliberately not in P2:**
+- Read-side query services (list/detail/audit DTOs). They need the Application DTOs and AutoMapper profiles, so they arrive with P3 tasks 19 and 21.
+- The MediatR implementation of `IDomainEventDispatcher` (P3).
+- The idempotency middleware that uses `IdempotencyRecords` (P5).

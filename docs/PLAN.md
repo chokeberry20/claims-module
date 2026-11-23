@@ -1,7 +1,7 @@
 # Claims Module (FNOL + Reserve Management): Plan
 
 _Status: approved plan, revision 4 (2026-11-22). Implementation has not started._
-_Related: [DECISIONS.md](DECISIONS.md) (D-01…D-50), [ai-log.md](ai-log.md)._
+_Related: [DECISIONS.md](DECISIONS.md) (D-01…D-59), [ai-log.md](ai-log.md)._
 _Section numbering follows the approved plan: §7 (ambiguities and contradictions) is in DECISIONS.md, and §9 (AI log) is in ai-log.md._
 
 `files/` has two documents:
@@ -302,6 +302,7 @@ Each task ends with a **Verify** check. Commit after each task (git init in P0).
     7. Run the SWA deploy action with the Angular dist.
     *Verify:* a green run. Public Swagger shows up, the SWA loads and its footer shows the API healthy, and Azure SQL has the seed rows.
 17e. Add a smoke-test script `scripts/smoke.sh` (curl `/health`, `/api/reference/cause-of-loss-codes` once it exists). Run it as the last step of `deploy.yml`.
+17f. **Azure SQL hardening from P2** (D-56, D-57): create a contained application DB user with least privilege and `DENY UPDATE, DELETE ON dbo.ClaimAuditLog`, the migration bundle runs as a separate admin identity, and the EF retrying execution strategy is on, with explicit transactions wrapped in `CreateExecutionStrategy().ExecuteAsync`. *Verify:* the app user can't UPDATE ClaimAuditLog on Azure, and the integration tests still pass with the retry strategy enabled.
 
 **Incremental deployment rule:** every phase from P3 onward ends with a **"Deploy & smoke"** task. Run `deploy.yml`, run the smoke script, extend it with that phase's endpoints or pages, and record the result in ai-log.
 
@@ -312,6 +313,7 @@ Each task ends with a **Verify** check. Commit after each task (git init in P0).
 21. List and detail queries (filters, paging, totalReserves, search). *Verify:* integration tests with seeded claims.
 22. Claim maintenance commands: loss-details, policy, assignment, notes, validate, acknowledge warnings, **waive critical issue (supervisor+, reason required, VALIDATION_ISSUE_WAIVED)**. *Verify:* tests. A handler waive gets 403. An empty reason gets 422. A waived issue is not re-raised on re-validation. Waiving `NO_CLAIMANT` gets 422 (non-waivable).
 23. `TransitionClaimStatusCommand` plus `GetAvailableTransitionsQuery`. *Verify:* tests for each S4.2 row and the 422 bodies.
+23a. The transition handler also checks the requested (from, to) pair against the `ClaimStatusTransitions` rows read from the database before calling the domain (D-59). The brief says to "validate against allowed transitions table". *Verify:* a test where a row deleted from the table is rejected even though the domain allows the pair, and a test that DB and domain stay equal (P2 SeedDataTests already covers the second).
 24. Party and risk-object commands. *Verify:* the last-claimant 422.
 25. Reserve commands and queries: submit, approve, reject, retract, retry, get, override. *Verify:* tests for each BR-R rule.
 25a. **Reserve command handlers enforce the claim-level preconditions** (your P1 review): every reserve-changing command (submit/open/adjust/reverse, approve, reject, retract, retry-posting, and the optional initial reserve inside `CreateClaimCommand`) loads the Claim and calls `claim.EnsureReserveChangesAllowed()` *in the handler*, before touching the reserve aggregate. That enforces **BR-C-06** (a policy must be linked: 422 `RESERVES_REQUIRE_POLICY`) and **D-20** (claim status must be Draft, Open, UnderInvestigation or PendingPayment: 422 `RESERVES_NOT_ALLOWED_IN_STATUS`). The handler also calls `claim.RecordReserveActivity(...)`, so the claim row version changes. *Verify:* handler tests for each command: no policy gives 422 RESERVES_REQUIRE_POLICY; Closed and Withdrawn claims give 422 RESERVES_NOT_ALLOWED_IN_STATUS; the allowed statuses succeed. An FNOL with an initial reserve and no policy is rejected with nothing saved.
