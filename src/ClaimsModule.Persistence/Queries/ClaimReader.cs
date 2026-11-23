@@ -172,3 +172,28 @@ internal sealed class ClaimReader(ClaimsDbContext context, IMapper mapper) : ICl
             .ToDictionary(g => g.Key, g => g.Sum(b => b.CurrentAmount.Amount));
     }
 }
+
+/// <summary>Reserve reads: components with their history, no tracking.</summary>
+internal sealed class ReserveReader(ClaimsDbContext context, IMapper mapper) : ClaimsModule.Application.Reserves.IReserveReader
+{
+    public async Task<ClaimsModule.Application.Reserves.ClaimReservesDto?> GetForClaimAsync(Guid claimId, CancellationToken cancellationToken)
+    {
+        if (!await context.Claims.AnyAsync(c => c.Id == claimId, cancellationToken))
+        {
+            return null;
+        }
+
+        var components = await context.ReserveComponents.AsNoTracking()
+            .Include(c => c.Transactions)
+            .Where(c => c.ClaimId == claimId)
+            .ToListAsync(cancellationToken);
+
+        var history = components
+            .SelectMany(c => c.Transactions)
+            .OrderByDescending(t => t.SubmittedAt).ThenByDescending(t => t.ChangeSequence)
+            .Select(mapper.Map<ClaimsModule.Application.Reserves.ReserveTransactionDto>)
+            .ToList();
+
+        return new ClaimsModule.Application.Reserves.ClaimReservesDto(claimId, ClaimReader.Totals(components), history);
+    }
+}

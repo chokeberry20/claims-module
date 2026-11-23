@@ -33,6 +33,7 @@ public static class DependencyInjection
 
         services.AddScoped<Claims.ClaimValidationContextBuilder>();
         services.AddScoped<Claims.TransitionTable>();
+        services.AddScoped<Reserves.ReserveContextLoader>();
         services.AddAutoMapper(_ => { }, typeof(AssemblyReference).Assembly);
         services.AddValidatorsFromAssembly(typeof(AssemblyReference).Assembly, includeInternalTypes: true);
         services.Replace(ServiceDescriptor.Scoped<IDomainEventDispatcher, MediatorDomainEventDispatcher>());
