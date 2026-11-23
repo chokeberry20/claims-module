@@ -83,3 +83,11 @@ public sealed record ReservePostingRetryRequested(
     string IdempotencyKey,
     Guid ActorUserId,
     DateTimeOffset OccurredAt) : DomainEvent(OccurredAt);
+
+/// <summary>The stale-posting sweep re-enqueued a Pending GL posting (task 27a). System-initiated.</summary>
+public sealed record ReservePostingRequeued(
+    Guid ClaimId,
+    Guid ReserveComponentId,
+    Guid TransactionId,
+    string IdempotencyKey,
+    DateTimeOffset OccurredAt) : DomainEvent(OccurredAt);

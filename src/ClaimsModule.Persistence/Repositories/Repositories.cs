@@ -31,6 +31,22 @@ internal sealed class ReserveComponentRepository(ClaimsDbContext context) : IRes
             .AsSplitQuery()
             .ToListAsync(cancellationToken);
 
+    public Task<ClaimReserveComponent?> GetByTransactionIdAsync(Guid transactionId, CancellationToken cancellationToken = default) =>
+        context.ReserveComponents
+            .Include(c => c.Transactions)
+            .SingleOrDefaultAsync(c => c.Transactions.Any(t => t.Id == transactionId), cancellationToken);
+
+    public async Task<IReadOnlyList<ClaimReserveComponent>> ListWithStalePendingPostingsAsync(DateTimeOffset approvedBefore, CancellationToken cancellationToken = default) =>
+        await context.ReserveComponents
+            .Include(c => c.Transactions)
+            .Where(c => c.Transactions.Any(t =>
+                (t.ApprovalStatus == ApprovalStatus.AutoApproved || t.ApprovalStatus == ApprovalStatus.Approved)
+                && t.PostingStatus == PostingStatus.Pending
+                && t.ApprovedAt < approvedBefore
+                && (t.PostingLastEnqueuedAt == null || t.PostingLastEnqueuedAt < approvedBefore)))
+            .AsSplitQuery()
+            .ToListAsync(cancellationToken);
+
     public void Add(ClaimReserveComponent component) => context.ReserveComponents.Add(component);
 }
 

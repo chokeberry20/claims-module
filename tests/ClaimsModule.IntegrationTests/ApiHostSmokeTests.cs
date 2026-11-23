@@ -15,6 +15,10 @@ namespace ClaimsModule.IntegrationTests;
 [Collection(SqlServerTestGroup.Name)]
 public sealed class ApiHostSmokeTests(SqlServerDatabaseFixture db)
 {
+    /// <summary>Every migration compiled into the Persistence assembly (so adding one never needs a test edit).</summary>
+    private static readonly int CompiledMigrationCount = typeof(global::ClaimsModule.Persistence.ClaimsDbContext).Assembly.GetTypes()
+        .Count(t => t.GetCustomAttributes(typeof(Microsoft.EntityFrameworkCore.Migrations.MigrationAttribute), inherit: false).Length > 0);
+
     [Fact]
     public async Task Liveness_endpoint_returns_200()
     {
@@ -42,7 +46,7 @@ public sealed class ApiHostSmokeTests(SqlServerDatabaseFixture db)
         var migrations = root.GetProperty("entries").GetProperty("migrations");
         migrations.GetProperty("status").GetString().ShouldBe("Healthy");
         migrations.GetProperty("data").GetProperty("pending").GetInt32().ShouldBe(0);
-        migrations.GetProperty("data").GetProperty("applied").GetInt32().ShouldBe(4);
+        migrations.GetProperty("data").GetProperty("applied").GetInt32().ShouldBe(CompiledMigrationCount);
     }
 
     [Theory]

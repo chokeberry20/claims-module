@@ -82,6 +82,15 @@ public interface IReserveComponentRepository
     /// <summary>All reserve components of a claim, with their transaction history.</summary>
     Task<IReadOnlyList<ClaimReserveComponent>> ListForClaimAsync(Guid claimId, CancellationToken cancellationToken = default);
 
+    /// <summary>The component that holds this transaction, with its history (GL posting jobs).</summary>
+    Task<ClaimReserveComponent?> GetByTransactionIdAsync(Guid transactionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Components with an approved transaction still Pending posting, approved before <paramref name="approvedBefore"/>
+    /// and not re-enqueued since then (task 27a).
+    /// </summary>
+    Task<IReadOnlyList<ClaimReserveComponent>> ListWithStalePendingPostingsAsync(DateTimeOffset approvedBefore, CancellationToken cancellationToken = default);
+
     void Add(ClaimReserveComponent component);
 }
 

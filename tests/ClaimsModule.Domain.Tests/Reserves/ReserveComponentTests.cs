@@ -434,6 +434,48 @@ public sealed class ReserveComponentTests
         c.DomainEvents.ShouldHaveSingleItem().ShouldBeOfType<ReservePostingCompleted>();
     }
 
+    // ------------------------------------------------------------------ stale-posting sweep (task 27a, D-56)
+
+    [Fact]
+    public void Requeue_stamps_the_transaction_and_raises_an_event_with_the_same_idempotency_key()
+    {
+        var c = NewComponent();
+        var txn = Add(c, 1_000m).Transaction;
+        c.ClearDomainEvents();
+
+        c.MarkPostingRequeued(txn.Id, Now.AddMinutes(15)).ShouldBeTrue();
+
+        txn.PostingLastEnqueuedAt.ShouldBe(Now.AddMinutes(15));
+        txn.PostingStatus.ShouldBe(PostingStatus.Pending);
+        var requeued = c.DomainEvents.ShouldHaveSingleItem().ShouldBeOfType<ReservePostingRequeued>();
+        requeued.TransactionId.ShouldBe(txn.Id);
+        requeued.IdempotencyKey.ShouldBe(txn.IdempotencyKey);
+    }
+
+    [Fact]
+    public void Requeue_is_a_no_op_once_the_posting_is_no_longer_pending()
+    {
+        var c = NewComponent();
+        var txn = Add(c, 1_000m).Transaction;
+        c.MarkPosted(txn.Id, "job-1", Now);
+        c.ClearDomainEvents();
+
+        c.MarkPostingRequeued(txn.Id, Now).ShouldBeFalse();
+
+        txn.PostingLastEnqueuedAt.ShouldBeNull();
+        c.DomainEvents.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Pending_approval_transactions_are_never_requeued()
+    {
+        var c = NewComponent();
+        var txn = Add(c, 50_000m).Transaction;
+
+        Should.Throw<DomainRuleViolationException>(() => c.MarkPostingRequeued(txn.Id, Now))
+            .Violations.ShouldHaveSingleItem().Code.ShouldBe("RESERVE_NOT_APPROVED");
+    }
+
     [Fact]
     public void Pending_transactions_are_never_posted()
     {

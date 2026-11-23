@@ -904,6 +904,23 @@ BEGIN
     VALUES (N'20261122235304_AuditLogAppendOnlyTrigger', N'9.0.23');
 END;
 
+IF NOT EXISTS (
+    SELECT * FROM [dbo].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123160041_AddPostingLastEnqueuedAt'
+)
+BEGIN
+    ALTER TABLE [ReserveHistory] ADD [PostingLastEnqueuedAt] datetimeoffset(7) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [dbo].[__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261123160041_AddPostingLastEnqueuedAt'
+)
+BEGIN
+    INSERT INTO [dbo].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261123160041_AddPostingLastEnqueuedAt', N'9.0.23');
+END;
+
 COMMIT;
 GO
 

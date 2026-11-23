@@ -269,6 +269,25 @@ public sealed class ClaimReserveComponent : AggregateRoot
         return true;
     }
 
+    /// <summary>
+    /// Task 27a (D-56): the stale-posting sweep re-enqueues an approved posting that is still Pending
+    /// (its after-commit enqueue was lost). Stamps <see cref="ReserveTransaction.PostingLastEnqueuedAt"/> so
+    /// the next sweep waits again, and raises <see cref="ReservePostingRequeued"/>, whose after-commit
+    /// handler enqueues the job with the same idempotency key. Returns false once it isn't Pending.
+    /// </summary>
+    public bool MarkPostingRequeued(Guid transactionId, DateTimeOffset now)
+    {
+        var transaction = GetApproved(transactionId);
+        if (transaction.PostingStatus != PostingStatus.Pending)
+        {
+            return false;
+        }
+
+        transaction.MarkPostingRequeued(now);
+        Raise(new ReservePostingRequeued(ClaimId, Id, transaction.Id, transaction.IdempotencyKey, now));
+        return true;
+    }
+
     /// <summary>D-28: Supervisor+ re-queues a failed posting with the same idempotency key.</summary>
     public void RequestPostingRetry(Guid transactionId, Actor actor, DateTimeOffset now)
     {

@@ -1106,6 +1106,10 @@ namespace ClaimsModule.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<DateTimeOffset?>("PostingLastEnqueuedAt")
+                        .HasPrecision(7)
+                        .HasColumnType("datetimeoffset(7)");
+
                     b.Property<string>("PostingStatus")
                         .IsRequired()
                         .HasMaxLength(50)

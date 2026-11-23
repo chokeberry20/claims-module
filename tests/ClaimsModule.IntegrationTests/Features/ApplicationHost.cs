@@ -1,5 +1,6 @@
 using ClaimsModule.Application;
 using ClaimsModule.Application.Abstractions;
+using ClaimsModule.Application.Abstractions.Jobs;
 using ClaimsModule.Domain.Common;
 using ClaimsModule.IntegrationTests.Persistence;
 using ClaimsModule.Persistence;
@@ -35,6 +36,7 @@ internal sealed class ApplicationHost : IAsyncDisposable
         services.AddPersistence(db.ConnectionString);
         services.AddApplication();
         services.AddSingleton<IUserDirectory>(new InMemoryUserDirectory([Handler1, Handler2, Supervisor1, Supervisor2, Manager1]));
+        services.AddSingleton<IJobScheduler>(Jobs);
         configure?.Invoke(services);
         _root = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
     }
@@ -47,6 +49,9 @@ internal sealed class ApplicationHost : IAsyncDisposable
     public TestTenantProvider Tenant { get; } = new(SqlServerDatabaseFixture.OrganisationId);
 
     public TestCorrelationContext Correlation { get; } = new();
+
+    /// <summary>Records every enqueued job instead of running it.</summary>
+    public RecordingJobScheduler Jobs { get; } = new();
 
     public IServiceProvider Services => _root;
 
@@ -106,4 +111,36 @@ internal sealed class InMemoryUserDirectory(IEnumerable<Actor> actors) : IUserDi
 
     public Task<DirectoryUser?> FindAsync(Guid userId, CancellationToken cancellationToken) =>
         Task.FromResult(_users.GetValueOrDefault(userId));
+}
+
+/// <summary>Records enqueued GL posting jobs; can be told to fail, to simulate a lost enqueue.</summary>
+internal sealed class RecordingJobScheduler : IJobScheduler
+{
+    private readonly List<(Guid TransactionId, string IdempotencyKey)> _enqueued = [];
+
+    public bool FailEnqueue { get; set; }
+
+    public IReadOnlyList<(Guid TransactionId, string IdempotencyKey)> Enqueued
+    {
+        get
+        {
+            lock (_enqueued)
+            {
+                return [.. _enqueued];
+            }
+        }
+    }
+
+    public void EnqueueGlPosting(Guid transactionId, string idempotencyKey)
+    {
+        if (FailEnqueue)
+        {
+            throw new InvalidOperationException("Simulated: the job storage is unavailable.");
+        }
+
+        lock (_enqueued)
+        {
+            _enqueued.Add((transactionId, idempotencyKey));
+        }
+    }
 }

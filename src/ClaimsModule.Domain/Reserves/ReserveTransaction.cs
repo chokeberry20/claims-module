@@ -70,6 +70,9 @@ public sealed class ReserveTransaction : Entity
 
     public string? PostingFailureReason { get; private set; }
 
+    /// <summary>When the stale-posting sweep last re-enqueued the GL job (task 27a, D-56). Null if never re-enqueued.</summary>
+    public DateTimeOffset? PostingLastEnqueuedAt { get; private set; }
+
     /// <summary><c>Reserve:{ReserveId}:Change:{ChangeSequence}</c> (BR-R-06).</summary>
     public string IdempotencyKey { get; private set; } = string.Empty;
 
@@ -163,4 +166,6 @@ public sealed class ReserveTransaction : Entity
     }
 
     internal void ResetPostingForRetry() => PostingStatus = PostingStatus.Pending;
+
+    internal void MarkPostingRequeued(DateTimeOffset now) => PostingLastEnqueuedAt = now.ToUniversalTime();
 }
