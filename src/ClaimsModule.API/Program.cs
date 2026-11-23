@@ -1,3 +1,4 @@
+using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Hangfire;
 using ClaimsModule.Infrastructure.Jobs;
 using ClaimsModule.Infrastructure;
@@ -12,12 +13,23 @@ using Serilog.Formatting.Compact;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Structured JSON logs to stdout. App Service and Container Apps collect them, and App Insights is wired in 17c.
-builder.Host.UseSerilog((context, services, logger) => logger
-    .ReadFrom.Configuration(context.Configuration)
-    .ReadFrom.Services(services)
-    .Enrich.FromLogContext()
-    .WriteTo.Console(new RenderedCompactJsonFormatter()));
+// Structured JSON logs to stdout (App Service collects them). writeToProviders passes the same events
+// to the other logging providers, so Azure Monitor (below) receives them too.
+builder.Host.UseSerilog(
+    (context, services, logger) => logger
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext()
+        .WriteTo.Console(new RenderedCompactJsonFormatter()),
+    writeToProviders: true);
+
+// Azure Monitor OpenTelemetry (P4, your decision; not the classic App Insights SDK): requests,
+// dependencies (SQL, HTTP, Blob) and logs go to App Insights when its connection string is set,
+// which the Bicep template does in Azure. Locally and in tests it is off.
+if (!string.IsNullOrWhiteSpace(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
+{
+    builder.Services.AddOpenTelemetry().UseAzureMonitor();
+}
 
 var connectionString = builder.Configuration.GetConnectionString("ClaimsDb");
 if (string.IsNullOrWhiteSpace(connectionString))
