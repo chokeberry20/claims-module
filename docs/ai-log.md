@@ -394,5 +394,5 @@ The guard test is proven to catch a self-referential map.
   - CI first: run on `5a9ef94` green, 19 + 318 + 272 tests.
   - Bicep applied `WEBSITE_RUN_FROM_PACKAGE=1`, confirmed with `az webapp config appsettings list`.
   - **Smoke test 7 of 7, after** `/health/live` reported `1.0.0+5a9ef94…`.
-  - Afterwards `/health` returned 200 in 0.24 s (158 ms of checks). `/health` writes the version's `+` as `+`, which is why `smoke.sh` matches on the SHA alone.
+  - Afterwards `/health` returned 200 in 0.24 s (158 ms of checks). `/health` JSON-escapes the plus sign in the version string (System.Text.Json's default encoder), which is why `smoke.sh` matches on the SHA alone.
 - `main` fast-forwarded to `p3-application` (your approval).
