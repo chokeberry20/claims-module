@@ -29,6 +29,7 @@ public static class DependencyInjection
             config.AddOpenBehavior(typeof(IdempotencyBehaviour<,>));
         });
 
+        services.AddAutoMapper(_ => { }, typeof(AssemblyReference).Assembly);
         services.AddValidatorsFromAssembly(typeof(AssemblyReference).Assembly, includeInternalTypes: true);
         services.Replace(ServiceDescriptor.Scoped<IDomainEventDispatcher, MediatorDomainEventDispatcher>());
 

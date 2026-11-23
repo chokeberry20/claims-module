@@ -50,6 +50,9 @@ internal sealed class PersistenceServices : IAsyncDisposable
         services.AddSingleton<ICorrelationContext>(Correlation);
         services.AddSingleton<IDomainEventDispatcher>(Dispatcher);
         services.AddPersistence(db.ConnectionString, configureSqlServer);
+        // Persistence readers project through the Application AutoMapper profiles; a real host gets
+        // IMapper from AddApplication().
+        services.AddAutoMapper(_ => { }, typeof(global::ClaimsModule.Application.AssemblyReference).Assembly);
         _root = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
     }
 

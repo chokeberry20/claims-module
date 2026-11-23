@@ -1,6 +1,8 @@
 using ClaimsModule.Application.Abstractions.Audit;
 using ClaimsModule.Application.Abstractions.Persistence;
+using ClaimsModule.Application.ReferenceData;
 using ClaimsModule.Persistence.Interceptors;
+using ClaimsModule.Persistence.Queries;
 using ClaimsModule.Persistence.Repositories;
 using ClaimsModule.Persistence.Services;
 using Microsoft.EntityFrameworkCore;
@@ -52,6 +54,7 @@ public static class DependencyInjection
         services.AddScoped<IClaimNumberGenerator, ClaimNumberGenerator>();
         services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddScoped<IIdempotencyStore, IdempotencyStore>();
+        services.AddScoped<IReferenceDataReader, ReferenceDataReader>();
         services.AddScoped<IClaimRepository, ClaimRepository>();
         services.AddScoped<IReserveComponentRepository, ReserveComponentRepository>();
         services.AddScoped<IClaimDocumentRepository, ClaimDocumentRepository>();

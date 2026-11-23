@@ -15,6 +15,18 @@
     <Product>Claims Management System — FNOL &amp; Reserves</Product>
   </PropertyGroup>
 
+  <!--
+    D-67: AutoMapper 14.0.0 (last open-source line) has three high-severity DoS advisories, fixed
+    only in the commercial 15.1.4+ / 16.3+. Only these three IDs are suppressed; NuGet audit and
+    TreatWarningsAsErrors stay on for everything else. "Not affected" analysis and the guard test:
+    DECISIONS.md D-67, tests/ClaimsModule.Application.Tests/Mapping/MappingConfigurationTests.cs.
+  -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-rvv3-g6hj-g44x" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-gpwp-5797-mjff" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-6vhm-j9h7-f9gh" />
+  </ItemGroup>
+
   <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
   </PropertyGroup>
