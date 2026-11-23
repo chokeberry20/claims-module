@@ -57,6 +57,7 @@ public static class DependencyInjection
         services.AddScoped<IIdempotencyStore, IdempotencyStore>();
         services.AddScoped<IReferenceDataReader, ReferenceDataReader>();
         services.AddScoped<IClaimReader, ClaimReader>();
+        services.AddScoped<ISlaQueries, SlaQueries>();
         services.AddScoped<global::ClaimsModule.Application.Reserves.IReserveReader, ReserveReader>();
         services.AddScoped<IClaimRepository, ClaimRepository>();
         services.AddScoped<IReserveComponentRepository, ReserveComponentRepository>();
