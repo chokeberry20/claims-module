@@ -324,6 +324,25 @@ public sealed class ApiContractTests(SqlServerDatabaseFixture db) : IDisposable
     }
 
     [Fact]
+    public async Task Swagger_schema_ids_are_readable_type_names()
+    {
+        using var client = _factory.CreateClient();
+        var doc = await (await client.GetAsync("/swagger/v1/swagger.json")).JsonAsync(HttpStatusCode.OK);
+        var ids = doc.GetProperty("components").GetProperty("schemas").EnumerateObject().Select(p => p.Name).ToList();
+
+        ids.ShouldContain("CreateClaimRequest");
+        ids.ShouldContain("ClaimStatus");
+        ids.ShouldContain("ApiError");
+        ids.ShouldContain("PagedResultOfClaimSummaryDto");
+        ids.ShouldContain("PagedResultOfAuditLogEntryDto");
+        // Plain identifiers: no namespaces, backticks or assembly names.
+        ids.ShouldAllBe(id => id.All(char.IsAsciiLetterOrDigit));
+
+        var list = doc.GetProperty("paths").GetProperty("/api/claims").GetProperty("get").GetProperty("responses").GetProperty("200").GetRawText();
+        list.ShouldContain("#/components/schemas/PagedResultOfClaimSummaryDto");
+    }
+
+    [Fact]
     public async Task Claim_statuses_list_every_status_with_its_next_statuses()
     {
         using var client = await _factory.SignedInClientAsync("handler1");

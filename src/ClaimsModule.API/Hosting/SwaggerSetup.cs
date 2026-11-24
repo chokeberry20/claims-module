@@ -7,6 +7,27 @@ using Swashbuckle.AspNetCore.SwaggerGen;
 namespace ClaimsModule.API.Hosting;
 
 /// <summary>Swagger with Bearer authentication and the Idempotency-Key header (B4.3, B6.2 "Swagger populated with correct schemas").</summary>
+/// <summary>
+/// Readable Swagger schema ids: the type's own name (<c>CreateClaimRequest</c>, <c>ClaimStatus</c>), and for
+/// generics the name plus its arguments (<c>PagedResultOfClaimSummaryDto</c>) instead of .NET's
+/// <c>PagedResult`1[[…, Version=…]]</c>. Swashbuckle refuses to generate the document if two types map to the
+/// same id, so a clash can't go unnoticed: the Swagger tests generate it.
+/// </summary>
+internal static class SchemaIds
+{
+    public static string For(Type type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        if (!type.IsGenericType)
+        {
+            return type.Name;
+        }
+
+        var name = type.Name[..type.Name.IndexOf('`', StringComparison.Ordinal)];
+        return name + "Of" + string.Concat(type.GetGenericArguments().Select(For));
+    }
+}
+
 internal static class SwaggerSetup
 {
     public const string BearerScheme = "Bearer";
@@ -33,7 +54,7 @@ internal static class SwaggerSetup
             });
             options.OperationFilter<AuthAndIdempotencyOperationFilter>();
             options.SupportNonNullableReferenceTypes();
-            options.CustomSchemaIds(type => type.FullName!.Replace("ClaimsModule.", string.Empty, StringComparison.Ordinal).Replace('+', '.'));
+            options.CustomSchemaIds(SchemaIds.For);
 
             var xml = Path.Combine(AppContext.BaseDirectory, $"{Assembly.GetExecutingAssembly().GetName().Name}.xml");
             if (File.Exists(xml))
