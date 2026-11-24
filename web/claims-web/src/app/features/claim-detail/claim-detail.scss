@@ -1,0 +1,14 @@
+:host { display: block; min-width: 1200px; }
+.back { margin: -8px 0 8px -8px; }
+.claim-header { border: 1px solid var(--mat-sys-outline-variant); border-radius: 12px; padding: 16px 20px; margin-bottom: 16px; }
+.title-row { display: flex; align-items: center; gap: 8px; }
+h1 { font: var(--mat-sys-headline-small); font-family: 'Roboto Mono', monospace; margin: 0; }
+.spacer { flex: 1; }
+.facts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin: 16px 0 0; }
+.facts dt { font: var(--mat-sys-label-medium); color: var(--mat-sys-on-surface-variant); }
+.facts dd { margin: 2px 0 0; }
+.issues { margin-top: 12px; display: flex; flex-direction: column; gap: 4px; }
+.issue { display: flex; align-items: center; gap: 8px; font: var(--mat-sys-body-small); }
+.issue[data-severity='Critical'] mat-icon { color: var(--mat-sys-error); }
+.issue[data-severity='Warning'] mat-icon { color: #a15c00; }
+.state { display: flex; justify-content: center; padding: 48px; }

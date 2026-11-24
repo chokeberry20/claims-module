@@ -1,0 +1,88 @@
+<a mat-button routerLink="/claims" class="back"><mat-icon>arrow_back</mat-icon> Claims</a>
+
+@if (claim(); as c) {
+  <header class="claim-header">
+    <div class="title-row">
+      <h1 data-testid="claim-number">{{ c.claimNumber }}</h1>
+      <button
+        mat-icon-button
+        [cdkCopyToClipboard]="c.claimNumber"
+        (cdkCopyToClipboardCopied)="copied()"
+        matTooltip="Copy claim number"
+        aria-label="Copy claim number"
+      >
+        <mat-icon>content_copy</mat-icon>
+      </button>
+      <app-badge [status]="c.status" data-testid="claim-status" />
+      @if (c.reopenCount > 0) {
+        <app-badge label="Reopened" tone="amber" />
+      }
+      @if (c.isSlaBreached) {
+        <app-badge label="SLA breached" tone="red" />
+      }
+      <span class="spacer"></span>
+      <button
+        mat-flat-button
+        [matMenuTriggerFor]="transitionMenu"
+        [disabled]="transitions().length === 0 || transitioning()"
+        data-testid="transition-button"
+      >
+        Change status <mat-icon iconPositionEnd>arrow_drop_down</mat-icon>
+      </button>
+      <mat-menu #transitionMenu="matMenu">
+        @for (t of transitions(); track t.targetStatus) {
+          <div [matTooltip]="blockedReason(t) ?? ''" matTooltipPosition="left">
+            <button
+              mat-menu-item
+              [disabled]="!t.isAllowed"
+              (click)="startTransition(t)"
+              [attr.data-testid]="'transition-' + t.targetStatus"
+            >
+              <mat-icon>{{ t.isAllowed ? 'arrow_forward' : 'block' }}</mat-icon>
+              <span>{{ label(t.targetStatus) }}</span>
+            </button>
+          </div>
+        }
+      </mat-menu>
+    </div>
+
+    <dl class="facts">
+      <div><dt>Policy</dt><dd>{{ c.policyNumber ?? 'No policy linked' }}{{ c.clientName ? ' · ' + c.clientName : '' }}</dd></div>
+      <div><dt>Loss date</dt><dd>{{ c.lossEvent.lossDate | date: 'medium' }}</dd></div>
+      <div><dt>Cause of loss</dt><dd>{{ c.lossEvent.causeOfLossName ?? c.lossEvent.causeOfLossCode }}</dd></div>
+      <div><dt>Assigned handler</dt><dd data-testid="assigned-handler">{{ c.assignedHandlerName ?? 'Unassigned' }}</dd></div>
+      <div><dt>Approved reserves (gross)</dt><dd>{{ c.reserves.approvedGross | money }}</dd></div>
+    </dl>
+
+    @if (openIssues().length) {
+      <div class="issues" data-testid="open-issues">
+        @for (issue of openIssues(); track issue.issueId) {
+          <div class="issue" [attr.data-severity]="issue.severity">
+            <mat-icon>{{ issue.severity === 'Critical' ? 'error' : 'warning' }}</mat-icon>
+            <span>{{ issue.message }}</span>
+          </div>
+        }
+      </div>
+    }
+  </header>
+
+  <mat-tab-group animationDuration="0ms" class="tabs">
+    <mat-tab label="Reserves">
+      <app-reserves-tab [claim]="c" [userNames]="userNames()" [version]="version()" (changed)="load()" />
+    </mat-tab>
+    <mat-tab label="Documents">
+      <ng-template matTabContent>
+        <app-documents-tab [claimId]="c.claimId" [version]="version()" (changed)="load()" />
+      </ng-template>
+    </mat-tab>
+    <mat-tab label="Audit log">
+      <ng-template matTabContent>
+        <app-audit-tab [claimId]="c.claimId" [userNames]="userNames()" [version]="version()" />
+      </ng-template>
+    </mat-tab>
+  </mat-tab-group>
+} @else if (loadError(); as error) {
+  <p class="state" data-testid="load-error">{{ error }}</p>
+} @else {
+  <div class="state"><mat-spinner diameter="36" /></div>
+}
