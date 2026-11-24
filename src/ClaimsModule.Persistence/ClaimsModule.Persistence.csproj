@@ -8,6 +8,10 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <!-- Pins the version SqlClient's Entra authentication uses (transitively 1.12.1). The migrations bundle is
+         built from this project, and the deploy needs AZURE_TOKEN_CREDENTIALS (1.14+) to use only the
+         az login session on the runner (P5 deploy incident, see ai-log). -->
+    <PackageReference Include="Azure.Identity" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
   </ItemGroup>
   <ItemGroup>

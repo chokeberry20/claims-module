@@ -144,6 +144,11 @@ jobs:
           echo "rule=$rule" >> "$GITHUB_OUTPUT"
 
       - name: Apply EF Core migrations
+        env:
+          # Developer credentials only (here: the az login session). Without this, DefaultAzureCredential
+          # tries managed identity first, and on a runner whose host answers the metadata address
+          # (169.254.169.254, an AWS-hosted runner gave 401) it fails there instead of moving on.
+          AZURE_TOKEN_CREDENTIALS: dev
         run: |
           chmod +x artifacts/efbundle/efbundle
           # Passwordless: Active Directory Default picks up the az login session of the OIDC identity.
@@ -176,7 +181,7 @@ jobs:
           sqlcmd --version
           # -b: stop and exit non-zero on the first SQL error, which fails this step.
           sqlcmd -b -S "tcp:${{ steps.outputs.outputs.sql_server_fqdn }},1433" -d "${{ steps.outputs.outputs.sql_database }}" \
-            --authentication-method ActiveDirectoryDefault -i grant-app.sql
+            --authentication-method ActiveDirectoryAzCli -i grant-app.sql # the az login session, never managed identity
 
       - name: Close SQL firewall
         if: always() && steps.firewall.outputs.rule != ''
