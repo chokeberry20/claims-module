@@ -28,3 +28,11 @@
   border-top: 1px solid var(--mat-sys-outline-variant);
   font: var(--mat-sys-body-small);
 }
+
+.spacer {
+  flex: 1;
+}
+
+.loading-slot {
+  height: 4px;
+}

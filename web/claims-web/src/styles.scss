@@ -28,3 +28,13 @@ body {
   color: var(--mat-sys-on-surface);
   font: var(--mat-sys-body-medium);
 }
+
+// Snackbar severities (NotificationService).
+.claims-snack {
+  &.claims-snack-success { --mat-snack-bar-container-color: #1b5e20; }
+  &.claims-snack-info { --mat-snack-bar-container-color: #263238; }
+  &.claims-snack-warning { --mat-snack-bar-container-color: #8a4b00; }
+  &.claims-snack-error { --mat-snack-bar-container-color: #b3261e; }
+  --mat-snack-bar-supporting-text-color: #ffffff;
+  --mat-snack-bar-button-color: #ffffff;
+}

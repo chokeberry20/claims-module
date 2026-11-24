@@ -1,6 +1,7 @@
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpErrorResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { catchError, map, Observable, of } from 'rxjs';
+import { SKIP_ERROR_SNACKBAR, SKIP_LOADING } from '../api/api-error';
 import { APP_CONFIG } from '../config/app-config';
 
 /** Shape of the API's GET /health response (see ClaimsModule.API HealthResponseWriter). */
@@ -22,7 +23,9 @@ export class HealthService {
   private readonly config = inject(APP_CONFIG);
 
   check(): Observable<ApiHealth> {
-    return this.http.get<HealthReport>(`${this.config.apiBaseUrl}/health`).pipe(
+    // A background ping: no loading bar, and the footer shows failures instead of a snackbar.
+    const context = new HttpContext().set(SKIP_LOADING, true).set(SKIP_ERROR_SNACKBAR, true);
+    return this.http.get<HealthReport>(`${this.config.apiBaseUrl}/health`, { context }).pipe(
       map((report) => toApiHealth(report)),
       catchError((error: unknown) => of(fromError(error))),
     );

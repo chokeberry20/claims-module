@@ -1,12 +1,22 @@
 <mat-toolbar class="app-toolbar">
-  <a routerLink="/" class="brand">
+  <a routerLink="/claims" class="brand">
     <mat-icon aria-hidden="true">shield</mat-icon>
     <span>Claims Module</span>
   </a>
+  <span class="spacer"></span>
+  <app-user-menu />
 </mat-toolbar>
+<div class="loading-slot">
+  @if (loading.isLoading()) {
+    <mat-progress-bar mode="indeterminate" data-testid="loading-bar" />
+  }
+</div>
 
 <main class="app-content">
-  <router-outlet />
+  <!-- Re-created when the user changes, so the page reloads its data with the new user's token and role. -->
+  @for (key of [userKey()]; track key) {
+    <router-outlet />
+  }
 </main>
 
 <footer class="app-footer">
