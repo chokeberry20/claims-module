@@ -725,3 +725,28 @@ Every commit went through the full gate (0 warnings; .NET 44 + 318 + 327 at the 
 - **Swagger on Azure:** 64 schemas, all plain names (`PagedResultOfClaimSummaryDto`, `PagedResultOfAuditLogEntryDto`).
 - Azure demo claims now `CLM-2026-0000001` … `-0000005`.
 - All green, so `main` was fast-forwarded to `p6b-frontend` and pushed: **P6b accepted.**
+
+## Session 3 (continued): 2026-11-24: submission preparation (no Azure writes)
+
+**Your instruction:** prepare the submission but stop before any Azure write: (1) propose readable demo passwords and the exact commands for the D-73 rotation, not run; (2) a final checklist against brief §4 and §8.2.
+
+- **Rotation script, prepared and not run** (session scratchpad, `rotate-demo-passwords.ps1`).
+  - **The AI proposes a format, not fixed values.** Each password is four words from a 128-word list plus two digits (about 35 bits, with sign-in limited to 10 per minute). Values are generated inside the script, so no password appears in command text, console output or this conversation's export, which is part of the submission (§4.6). This follows your standing rule on secret values.
+  - **Steps:**
+    1. Write new versions of the 4 secrets.
+    2. Disable the previously enabled versions.
+    3. Refresh App Service's Key Vault references and restart the API.
+    4. Verify each new password signs in (status only).
+    5. Write the handover file to `%USERPROFILE%\claims-demo-credentials.txt`, outside the repository.
+  - Checked without running: the PowerShell parser reports 0 errors; the word list has 128 distinct words.
+- **Read-only checks for the final checklist:**
+  - The repository is **private**, so reviewers need access.
+  - `files/` and `.docx` are not tracked; the only author email is the GitHub no-reply address; no `.env`, secrets or certificate files are tracked.
+  - `db/scripts/migrate-and-seed.sql` includes the last migration.
+  - Swagger, `/health` and the frontend answer 200.
+  - There is no docker-compose (optional in the brief; D-42; P7).
+- **Open before submission (yours):**
+  - approve and run the rotation;
+  - grant the reviewers repository access;
+  - provide the conversation export (§4.6);
+  - optionally P7 (docker-compose).
