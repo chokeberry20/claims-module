@@ -15,7 +15,7 @@ _Written 2026-11-24 at the end of P5, before compacting the session. It is for c
 | P5 API | done, **accepted 2026-11-24** | `p5-api` = `main` (`a3a7237`) | CI 45308154094; deploy 45308552280, smoke 13/13; `.http` flow 25/25 on Azure |
 | P6a Minimal demo-flow UI | done, **accepted 2026-11-24** | `p6a-demo-ui` = `main` | Angular tests 99; deploy 45380084863, smoke 15/15 at `+37b496f`; sign-in probe 12/12; §7.2 browser flow on Azure, no console errors |
 | P8 Docs & demo | done, **accepted 2026-11-24** | `main` (`8da9b31`) | README, ARCHITECTURE, AI-WORKFLOW at the repo root |
-| **P6b Frontend completeness** | **46–48 done; 49 (deploy) awaits approval** | `p6b-frontend` | Five tabs (48a must-have done), filters, close checklist, waive, GL retry, searchable cause, readable Swagger schema ids; Angular 123 |
+| P6b Frontend completeness | done, **accepted 2026-11-24** | `main` (deployed `+d951525`) | Five tabs (48a must-have done), filters, close checklist, waive, GL retry, searchable cause, readable Swagger schema ids; Angular 123 |
 | P7 local extras, Stretch | not started | | order: P7 → Stretch |
 
 **Before submission (D-73):** rotate the four demo passwords to readable ones for the reviewers. Write new Key Vault secret versions, disable the old versions (as in P4), and never print the values. Hand them over with the submission, never commit them. This is an Azure write, so it needs the user's approval.

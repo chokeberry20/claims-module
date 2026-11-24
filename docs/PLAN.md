@@ -1,6 +1,6 @@
 # Claims Module (FNOL + Reserve Management): Plan
 
-_Status: approved plan, revision 4 (2026-11-22). Implementation: P0–P5 done and reviewed (P5 accepted 2026-11-24); P6a done and accepted (2026-11-24); P8 done and accepted; P6b tasks 46–48 done, 49 (deploy) awaiting approval; then P7 (see the status line under each phase; details and run IDs in ai-log.md)._
+_Status: approved plan, revision 4 (2026-11-22). Implementation: P0–P5 done and reviewed (P5 accepted 2026-11-24); P6a done and accepted (2026-11-24); P8 done and accepted; P6b done and accepted (2026-11-24); next: the submission (password rotation, final checklist), then P7 (see the status line under each phase; details and run IDs in ai-log.md)._
 _Related: [DECISIONS.md](DECISIONS.md) (D-01…D-76), [ai-log.md](ai-log.md)._
 _Section numbering follows the approved plan: §7 (ambiguities and contradictions) is in DECISIONS.md, and §9 (AI log) is in ai-log.md._
 
@@ -397,7 +397,7 @@ Each task ends with a **Verify** check. Commit after each task (git init in P0).
 48. Detail polish: close pre-flight checklist from `/transitions`, waive-critical dialog (supervisor+; NO_CLAIMANT has no waive button), GL retry button, copyable claim number, skeleton loaders.
 49. Deploy & smoke.
 
-*Status 2026-11-24: **P6b tasks 46, 47, 48a, 48 and the Swagger schema names done; 49 (deploy) waits for your approval*** (branch `p6b-frontend`: `c01865f`, `73dbfe7`, `210639a`, `f1892fd`, `85f80de`). Angular tests 99 → 123, integration 326 → 327. The detail page has all five S11.3 tabs. Each task was checked in headless Chrome against the local API, including the full §7.2 flow. Skeleton loaders were not added (spinners meet S11.4). Choices: D-76.
+*Status 2026-11-24: **P6b done and accepted*** (task 49: CI 45391527779, deploy 45391528023, smoke 15 of 15 at `+d951525`, §7.2 browser flow with the new tabs green on Azure; `main` fast-forwarded) (branch `p6b-frontend`: `c01865f`, `73dbfe7`, `210639a`, `f1892fd`, `85f80de`). Angular tests 99 → 123, integration 326 → 327. The detail page has all five S11.3 tabs. Each task was checked in headless Chrome against the local API, including the full §7.2 flow. Skeleton loaders were not added (spinners meet S11.4). Choices: D-76.
 
 **Stretch backlog:** NetArchTest (3), magic bytes, HMAC local URLs, User Delegation SAS (29s), risk-object edit endpoints in the UI.
 

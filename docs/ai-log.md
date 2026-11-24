@@ -709,3 +709,19 @@ Every commit went through the full gate (0 warnings; .NET 44 + 318 + 327 at the 
 **Not done:** skeleton loaders. Spinners already meet S11.4 (D-76).
 
 **Task 49 (deploy and smoke) waits for your approval.** The proposal: push `p6b-frontend`, CI, deploy with `deploy_infra=false`, then the smoke test and the §7.2 browser flow including the new tabs on Azure.
+
+### Task 49 on Azure, and your P6b acceptance (2026-11-24)
+
+**Your approval:** "Task 49 approved: push p6b-frontend, CI, deploy with deploy_infra=false, smoke test, and the §7.2 browser flow with the new tabs against Azure. If everything is green: fast-forward main to p6b-frontend and push main — that's my P6b acceptance." Free space on C: was 444 MB. (Your earlier message had set a 2 GB minimum and the AI stopped; this message dropped that condition.)
+
+- **CI** run 45391527779 on `d951525`: green (44 + 318 + 327; Angular 123).
+- **Deploy** run 45391528023 (`deploy_infra=false`): green; smoke 15 of 15 at `+d951525`; all 7 Key Vault references Resolved.
+- **§7.2 browser flow on Azure, with the new tabs:** every step green, no console errors or warnings, no 5xx.
+  - Claim `CLM-2026-0000005`.
+  - Cause search: "fire" lists only Fire (COL-FIRE).
+  - GL posting Posted after 2.4 s; the download came from Blob storage with a SAS signature.
+  - The five tabs work: notes saved and kept; Remove disabled for the only Claimant; a witness added and removed; PARTY_ADDED, PARTY_REMOVED and CLAIM_UPDATED in the audit.
+  - Close through the checklist with a justification; Reopen disabled for handler1; supervisor1 reopened to Open.
+- **Swagger on Azure:** 64 schemas, all plain names (`PagedResultOfClaimSummaryDto`, `PagedResultOfAuditLogEntryDto`).
+- Azure demo claims now `CLM-2026-0000001` … `-0000005`.
+- All green, so `main` was fast-forwarded to `p6b-frontend` and pushed: **P6b accepted.**
