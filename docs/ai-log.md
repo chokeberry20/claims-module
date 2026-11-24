@@ -671,3 +671,41 @@ It was wrong twice:
 - the same-year lock test that couldn't detect a missing HOLDLOCK (P2 review; this session predicted that and proved it, then added the lock-level tests).
 
 AI-WORKFLOW.md §1, §2, §4, §5 and §6 now describe this writer / reviewer / decider pattern. The earlier entries are left as written.
+
+## Session 3 (continued): 2026-11-24: P6b frontend completeness
+
+**Your instruction:** "P8 accepted. Fast-forward main to p8-docs and push (docs only). Then start P6b: 48a (Overview and Parties tabs, must-have) first, then the Swagger schema names (PagedResult`1[[…]] → clean names), then the rest of P6b by priority. Same rules: build + test before every commit, stop after P6b for my review." `main` fast-forwarded to `8da9b31` and pushed (docs only). Branch `p6b-frontend`.
+
+Every commit went through the full gate (0 warnings; .NET 44 + 318 + 327 at the end; Angular 110 → 123). Each UI task was also checked in headless Chrome against the local API.
+
+| Task | Commit | What |
+|---|---|---|
+| 48a (must-have) | `c01865f` | Overview tab (loss event, severity, estimated amount, editable notes) and Parties tab (role, contact, active/removed, inline add, remove disabled for the last Claimant); the detail page has the five S11.3 tabs. The FNOL party form moved to `shared/`. |
+| Swagger names | `73dbfe7` | Schema ids are plain type names; generics are `PagedResultOfClaimSummaryDto`. A new integration test fails with the old id function (checked). |
+| 46 | `210639a` | Dashboard filters: loss date range, handler text (300 ms), cause of loss, Clear; a reversed range is refused inline. |
+| 48 | `f1892fd` | Close pre-flight checklist (CC-01…CC-04, opens even when blocked), Waive button for supervisors (not NO_CLAIMANT), GL Retry on Failed postings. |
+| 47 | `85f80de` | Searchable cause of loss in FNOL; only a listed code counts. The rest of 47 was already done in P6a. |
+
+**Browser checks (local):**
+- **Five tabs:** notes saved and kept after reload; Remove disabled for the only Claimant; a witness added and removed; PARTY_ADDED, PARTY_REMOVED and CLAIM_UPDATED in the audit.
+- **Filters:** "harry" gives the empty state, "hannah" 10 claims, Fire 8 claims (all Fire), from 2030 the empty state; a reversed range shows the inline error; Clear restores all 10.
+- **Task 48**, with the GL forced to fail (`GlPosting:SimulatedFailureRate=1`, no retries):
+  - While the reserve was pending, the checklist showed CC-01 blocked and Close was disabled.
+  - The posting went Failed; Retry re-queued it (200) and it failed again as forced.
+  - handler1 had no Retry button.
+  - After approval the checklist showed CC-01…03 passed and CC-04 needing a justification, and the claim closed.
+- **The full §7.2 flow** including the new tabs and the checklist: green, no console errors or warnings.
+- Waive wasn't shown in the browser: the only Critical issue reachable from the UI is NO_CLAIMANT, which is not waivable by design. Unit tests cover the button rules and the request.
+
+**Disk full (environment, not code).** During task 48, drive C: reached 0 bytes free. The Edit to `claim-detail.spec.ts` failed with ENOSPC, and command output could no longer be written. The AI stopped, deleted nothing, and reported what it could measure (project 581 MB, NuGet 1.9 GB, npm 422 MB, `%TEMP%` 1 GB). Its guess, the test database log, was wrong: you freed space and found no SQL file over 100 MB. After that, `git diff` showed the spec file unchanged (the failed edit never applied, nothing damaged), so the edit was redone and the full gate ran before the commit. Free space afterwards: about 440 MB, so the remaining work runs close to the limit.
+
+**AI mistakes in this phase:**
+- Bash template-literal expansion broke inline scripts three times; caught each time by the build or by reading the file, and fixed with the Edit tool.
+- One sed edit placed a constant between a decorator and its class; caught before building.
+- One test assertion was close to always-true; rewritten before commit.
+
+**Docs:** README walkthrough (filters, five tabs, waive, retry, close checklist, the remaining API-only operations), test counts in README and AI-WORKFLOW, and D-76 (the AI's P6b choices).
+
+**Not done:** skeleton loaders. Spinners already meet S11.4 (D-76).
+
+**Task 49 (deploy and smoke) waits for your approval.** The proposal: push `p6b-frontend`, CI, deploy with `deploy_infra=false`, then the smoke test and the §7.2 browser flow including the new tabs on Azure.

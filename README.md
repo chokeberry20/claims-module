@@ -10,7 +10,7 @@ A vertical slice of an insurance claims system: **first notice of loss (FNOL) in
 |---|---|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Solution structure, data model, CQRS flow, domain events, jobs, Azure, key decisions |
 | [AI-WORKFLOW.md](AI-WORKFLOW.md) | How the work was done with Claude, prompts, what the AI got wrong and how it was corrected |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | Every ambiguity, contradiction and design choice (D-00…D-75), with the rationale |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Every ambiguity, contradiction and design choice (D-00…D-76), with the rationale |
 | [docs/PLAN.md](docs/PLAN.md) | Requirements traceability (FR → spec section), phases and status |
 | [docs/ai-log.md](docs/ai-log.md) | The chronological log of the AI-assisted work, including every mistake and correction |
 
@@ -109,8 +109,8 @@ The frontend reads the API address at start-up from `public/app-config.json` (`{
 ### 5. Tests
 
 ```bash
-dotnet test                                  # domain 318, application 44, integration 326
-cd web/claims-web && npx ng test --watch=false   # Angular 99
+dotnet test                                  # domain 318, application 44, integration 327
+cd web/claims-web && npx ng test --watch=false   # Angular 123
 ```
 
 The integration tests run against the database `ClaimsModule_Tests` (`tests/ClaimsModule.IntegrationTests/testsettings.json`; override with `ConnectionStrings__ClaimsDb`). They create and migrate it themselves, and include an end-to-end HTTP scenario with a real Hangfire server.
@@ -192,22 +192,24 @@ Later deploys: `gh workflow run deploy.yml --ref <branch> -f deploy_infra=false`
 
 The brief's live-demo flow, all in the UI:
 
-1. **Sign in** as `handler1`. The **claims dashboard** lists claims with claim number, policy, client, loss date, cause, a colour-coded status badge and total reserves; it filters by status and pages through the results. **Log New Claim** opens FNOL.
+1. **Sign in** as `handler1`. The **claims dashboard** lists claims with claim number, policy, client, loss date, cause, a colour-coded status badge and total reserves. It filters by status (multi-select), loss date range, assigned handler (text) and cause of loss, and shows the total count with a page size selector. **Log New Claim** opens FNOL.
 2. **FNOL**, three steps:
-   - **Policy and loss:** policy typeahead with an in-force badge (or "Unknown policy"), loss date and time (not in the future), cause of loss, and a description with a 20-character minimum counter.
+   - **Policy and loss:** policy typeahead with an in-force badge (or "Unknown policy"), loss date and time (not in the future), a searchable cause of loss, and a description with a 20-character minimum counter.
    - **Parties and risk objects:** inline forms shown as chips; a Claimant is required.
    - **Initial reserve and review:** an optional reserve with a live authority indicator (auto-approved up to $10,000, supervisor up to $100,000, manager above), and a review table.
    
    Warnings (no policy, loss outside the policy period, no risk objects) are confirmed in a dialog. The claim is created as **Draft** with the next gapless number `CLM-YYYY-0000000`.
-3. **Claim detail:** a header with the status and a **Change status** menu showing only valid next statuses. Disabled options explain why, and the dialog asks for exactly what's needed: acknowledging warnings, a reason, or a closure justification. Move the claim **Draft → Open**.
-4. **Reserves tab:** the 50,000 initial reserve is **pending supervisor approval**. The handler sees no Approve button and can retract it. **Switch to `supervisor1`** and **approve**: the GL posting badge goes **Pending → Posted** when the background job runs. **Add reserve** opens a slide-in panel (open, adjust to a new balance, or reverse) with the authority indicator.
+3. **Claim detail:** a header with the status and a **Change status** menu showing only valid next statuses. Disabled options explain why, and the dialog asks for exactly what's needed: acknowledging warnings, a reason, or a closure justification. Supervisors can **waive** an open Critical issue with a reason (not the missing-Claimant one). Move the claim **Draft → Open**.
+   - **Overview tab:** loss event details, severity badge, estimated amount and editable **notes**.
+   - **Parties tab:** every party with role, contact and active/removed status; **add a party** inline; Remove is disabled for the last Claimant.
+4. **Reserves tab:** the 50,000 initial reserve is **pending supervisor approval**. The handler sees no Approve button and can retract it. **Switch to `supervisor1`** and **approve**: the GL posting badge goes **Pending → Posted** when the background job runs (a Failed posting shows **Retry** for supervisors). **Add reserve** opens a slide-in panel (open, adjust to a new balance, or reverse) with the authority indicator.
 5. **Documents tab:** upload a PDF (with progress) and **download** it through a 1-hour SAS link that opens in a new tab.
 6. **Audit log tab:** every change, newest first: CLAIM_CREATED, STATUS_CHANGED, RESERVE_APPROVED, GL_POSTING_SIMULATED (with the DR/CR journal), DOCUMENT_UPLOADED and more.
-7. **Close** the claim (a justification is required while reserves remain open), then **reopen** it as a supervisor. A handler sees Reopen disabled.
+7. **Close** the claim: the **close checklist** shows CC-01 to CC-04 and asks for a justification while reserves remain open, then **reopen** it as a supervisor. A handler sees Reopen disabled.
 
 Behind the scenes: every write accepts an `Idempotency-Key`, every error uses one JSON body (S10.4) with a correlation id, an SLA job flags Draft/Open claims idle for 48 hours every 15 minutes, and a sweep re-enqueues GL postings whose job was lost.
 
-**Not in the UI yet** (the API supports them; planned in P6b): the Overview and Parties tabs, the dashboard's date, handler and cause filters, waiving Critical issues, and retrying a failed GL posting. All are available through Swagger.
+**API-only operations** (in Swagger, not in the UI): editing loss details of a Draft, linking a policy later, reassigning the handler, changing severity, risk-object add/remove after FNOL, and the $10M reserve-limit override.
 
 ## Repository layout
 

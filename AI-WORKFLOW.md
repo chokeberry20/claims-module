@@ -42,7 +42,7 @@ So its findings were inputs to my decision, not instructions. In [docs/ai-log.md
 | File | Holds |
 |---|---|
 | [docs/PLAN.md](docs/PLAN.md) | Requirements traced to spec sections, and phases of small tasks, each with a *Verify* step |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | Every ambiguity and decision as a numbered entry (D-00…D-75), so a rule is never re-decided by accident |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Every ambiguity and decision as a numbered entry (D-00…D-76), so a rule is never re-decided by accident |
 | [docs/ai-log.md](docs/ai-log.md) | What happened in each step, including mistakes |
 | [docs/HANDOFF.md](docs/HANDOFF.md) | Written before each context compaction: current state, working rules, Azure names, known gotchas. The next context starts from it, not from a lossy summary |
 
@@ -160,7 +160,7 @@ The ai-log records many more cases. These are the most instructive. Each says wh
 
 **Most valuable:**
 - **Reading two long documents against each other.** The AI found contradictions and gaps between the brief and the spec that I would have found late or not at all (D-01…D-41): gapless numbering against a `SEQUENCE`, the SLA "status", stale seed dates, licence changes in MediatR and AutoMapper.
-- **Volume with consistency.** EF configurations for 14 tables following one set of conventions, 37 commands and queries with their validators, 688 backend and 99 frontend tests, Bicep, two workflows. All of it was produced in hours, and kept consistent because decisions lived in DECISIONS.md.
+- **Volume with consistency.** EF configurations for 14 tables following one set of conventions, 37 commands and queries with their validators, 689 backend and 123 frontend tests, Bicep, two workflows. All of it was produced in hours, and kept consistent because decisions lived in DECISIONS.md.
 - **Proving instead of asserting.** Mutation checks, throwaway probes, lock-level SQL evidence, deploy runs with a deliberate failure, browser runs with full logs. The AI was good at designing these experiments once asked for evidence.
 - **Azure and CI plumbing.** OIDC, Key Vault references, managed-identity SQL users and the runner sign-in issue. The AI diagnosed these from logs much faster than I would have.
 - **A second model as reviewer.** The independent session found the problems the writer was least likely to see in its own work: a stale test result, a flaky test, a spec shortfall, a wrong diagnosis, a race accepted too early. Every phase's claims were checked by a model that hadn't made them.
