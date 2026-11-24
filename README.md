@@ -20,7 +20,7 @@ A vertical slice of an insurance claims system: **first notice of loss (FNOL) in
 | `supervisor1` (Sam Supervisor) | `Quill-Falcon-Autumn-Fiddle-56` | Supervisor | Everything a handler can, plus approving reserves up to $100,000, reopening claims, waiving Critical issues |
 | `manager1` (Mia Manager) | `Thunder-Ivory-Thistle-Daisy-33` | Manager | Everything, approvals above $100,000, the $10M reserve-limit override |
 
-These are **demo accounts for the review**, published here at the recruiter's request. They will be **rotated after the live review** (D-73), so the passwords above will stop working then. Sign-in is rate-limited.
+These are **demo accounts for the review**, published here for the reviewers. They will be **rotated after the live review** (D-73), so the passwords above will stop working then. Sign-in is rate-limited.
 
 In the UI you sign in by picking a user and typing the password. The role switcher in the header signs you in as another user. A user you already signed in as in the same tab is switched to without a password. Tokens are held in memory only, so a page reload signs you out.
 
