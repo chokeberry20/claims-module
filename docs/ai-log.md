@@ -614,3 +614,14 @@ Every commit went through the same gate, run right before it: `dotnet build` (0 
   - In 40a the AI's output filter hid run 2's failure lines and it re-ran without reading them. This time every run's full log is kept in `logs/probe/`.
 
 **Not yet done (needs your approval):** push `a0b9d67`, deploy (`deploy_infra=false`), and repeat the 10-run sign-in probe against Azure with the fixed form.
+
+### The fix on Azure, and your P6a acceptance (2026-11-24)
+
+**Your approval:** "push p6a-demo-ui, deploy with deploy_infra=false, then re-run the sign-in probe against Azure (at least 10 runs, including clicking immediately on page load) and the full §7.2 flow once … If all green: fast-forward main to p6a-demo-ui and push main — that counts as my P6a acceptance."
+
+- **CI** run 45380082948 on `37b496f`: green (44 + 318 + 326; Angular 99). **Deploy** run 45380084863 (`deploy_infra=false`): green, smoke 15 of 15 at `+37b496f`.
+- **Sign-in probe against Azure with the fixed form, 12 runs, each clicking the picker immediately on reaching `/sign-in`:** **12 of 12 signed in**, no console errors or warnings, no page errors. The click was issued about 50 ms before the users request even started, and completed only after the response (the picker is disabled until then; the browser automation waits for it to be enabled).
+- **Users response delayed 3 s in the browser (against Azure), clicking immediately:** 2 of 2 signed in.
+- **Full §7.2 browser flow on Azure, once:** every step passed, no console errors or warnings, no 5xx. Claim `CLM-2026-0000004`, GL posting Posted after 0.2 s, download from Blob storage with a SAS signature, the four audit events present, close with a justification, Reopen disabled for handler1, supervisor1 reopened the claim to Open.
+- Azure demo claims now: `CLM-2026-0000001` … `-0000004`.
+- All green, so per your instruction `main` was fast-forwarded to `p6a-demo-ui` and pushed: **P6a accepted.**
