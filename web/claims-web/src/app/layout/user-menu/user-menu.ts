@@ -73,7 +73,12 @@ export class UserMenu {
     const returnUrl = this.router.url;
     if (!this.auth.switchTo(user.userName)) {
       void this.router.navigate(['/sign-in'], { queryParams: { user: user.userName, returnUrl } });
+      return;
     }
+    // Re-create the current page so it reloads with the new user's token and role.
+    void this.router
+      .navigateByUrl('/switching', { skipLocationChange: true })
+      .then(() => this.router.navigateByUrl(returnUrl));
   }
 
   protected signOut(): void {

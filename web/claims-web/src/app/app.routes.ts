@@ -9,6 +9,7 @@ export const routes: Routes = [
     loadComponent: () => import('./features/sign-in/sign-in').then((m) => m.SignIn),
     title: 'Sign in · Claims Module',
   },
+  { path: 'switching', loadComponent: () => import('./layout/switching').then((m) => m.Switching) },
   {
     path: 'claims',
     canActivate: [authGuard],

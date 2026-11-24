@@ -13,10 +13,7 @@
 </div>
 
 <main class="app-content">
-  <!-- Re-created when the user changes, so the page reloads its data with the new user's token and role. -->
-  @for (key of [userKey()]; track key) {
-    <router-outlet />
-  }
+  <router-outlet />
 </main>
 
 <footer class="app-footer">
