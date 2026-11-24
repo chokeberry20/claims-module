@@ -13,8 +13,8 @@ _Written 2026-11-24 at the end of P5, before compacting the session. It is for c
 | P3 Application | done, reviewed | `p3-application` | deploy 45233506838, smoke 7/7 |
 | P4 Infrastructure | done, reviewed | `p4-infrastructure` (`921601d`) | deploy 45267640714, smoke 9/9, 7/7 Key Vault refs |
 | P5 API | done, **accepted 2026-11-24** | `p5-api` = `main` (`a3a7237`) | CI 45308154094; deploy 45308552280, smoke 13/13; `.http` flow 25/25 on Azure |
-| **P6a Minimal demo-flow UI** | **tasks 36–40 done; 40a (deploy) awaits approval** | `p6a-demo-ui` (`2766488` + docs) | Angular tests 95; local §7.2 flow in headless Chrome, no console errors |
-| P8 Docs & demo, P7 local extras, P6b polish, Stretch | not started | | order: P6a → P8 → P7 → P6b → Stretch |
+| **P6a Minimal demo-flow UI** | **36–40a done; awaiting your review** | `p6a-demo-ui` (`2766488` + docs) | Angular tests 95; CI 45320475664; deploy 45320810838, smoke 15/15 at `+9ffa6f5`; §7.2 browser flow on Azure, no console errors |
+| P8 Docs & demo, P7 local extras, P6b, Stretch | not started | | order: P6a → P8 → P7 → P6b → Stretch. **P6b task 48a (Overview and Parties tabs, S11.3 five tabs) is must-have before submission** (your note, 2026-11-24) |
 
 **Before submission (D-73):** rotate the four demo passwords to readable ones for the reviewers. Write new Key Vault secret versions, disable the old versions (as in P4), and never print the values. Hand them over with the submission, never commit them. This is an Azure write, so it needs the user's approval.
 
@@ -27,7 +27,7 @@ Open items carried forward:
 
 ## 2. P6a (minimal demo-flow UI)
 
-**State (2026-11-24):** tasks 36–40 are done on `p6a-demo-ui` (see PLAN.md status line, ai-log Session 3, D-74). **Next: 40a**, which needs the user's approval: push the branch, CI, `deploy.yml` with `deploy_infra=false` (no Bicep change), then the §7.2 browser flow against the Azure URLs. The browser check lives in the session scratchpad (`e2e/`: `run-local.sh`, `lib.mjs`, `fnol.mjs`, `demo.mjs`, using `playwright-core` and the installed Chrome) and is lost with the session; it takes `WEB_URL` and the password from `CLAIMS_PW` (Azure: one password per user, so it needs per-user variables read from Key Vault in the same command). The original task list follows.
+**State (2026-11-24):** tasks 36–40a are done on `p6a-demo-ui` and deployed (`+9ffa6f5`); waiting for the user's P6a review (see PLAN.md status line, ai-log Session 3, D-74). Azure now also holds demo claims `CLM-2026-0000002` and `-0000003` from the 40a browser runs. The browser check lives in the session scratchpad (`e2e/`: `run-local.sh`, `lib.mjs`, `fnol.mjs`, `demo.mjs`, using `playwright-core` and the installed Chrome) and is lost with the session; it takes `WEB_URL` and the password from `CLAIMS_PW` (Azure: one password per user, so it needs per-user variables read from Key Vault in the same command). The original task list follows.
 
 Goal: the brief §7.2 live demo in the browser: FNOL → reserve → approval → upload → audit. Tasks come from PLAN.md P6a. Read that section before starting.
 

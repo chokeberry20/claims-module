@@ -1,6 +1,6 @@
 # Claims Module (FNOL + Reserve Management): Plan
 
-_Status: approved plan, revision 4 (2026-11-22). Implementation: P0–P5 done and reviewed (P5 accepted 2026-11-24); P6a tasks 36–40 done, 40a (deploy) awaiting approval (see the status line under each phase; details and run IDs in ai-log.md)._
+_Status: approved plan, revision 4 (2026-11-22). Implementation: P0–P5 done and reviewed (P5 accepted 2026-11-24); P6a tasks 36–40a done, awaiting your review (see the status line under each phase; details and run IDs in ai-log.md)._
 _Related: [DECISIONS.md](DECISIONS.md) (D-01…D-74), [ai-log.md](ai-log.md)._
 _Section numbering follows the approved plan: §7 (ambiguities and contradictions) is in DECISIONS.md, and §9 (AI log) is in ai-log.md._
 
@@ -377,7 +377,7 @@ Each task ends with a **Verify** check. Commit after each task (git init in P0).
     *Verify:* the full demo script with role switching works locally.
 40a. Deploy & smoke. Run the full brief §7.2 demo script on the **Azure** URLs and confirm the browser console has no errors.
 
-*Status 2026-11-24: **P6a tasks 36–40 done; 40a (deploy) waits for your approval*** (branch `p6a-demo-ui`, commits `391fa4c`, `bc51049`, `2e5cd9b`, `b82713e`, `2766488`). Angular tests 13 → 95; backend unchanged (318 + 44 + 326). Sign-in follows your D-73; the AI's frontend choices are D-74. Each task was also checked in headless Chrome against the local API; the full §7.2 flow with role switching passed with no console errors or warnings. Two bugs were found that way and fixed before commit (a dev-mode warning from the role switch, and the reserve panel sending Adjust for a new component). The smoke test gained a deep-link and a write-preflight check (14 of 14 locally).
+*Status 2026-11-24: **P6a tasks 36–40a done; awaiting your review*** (branch `p6a-demo-ui`, commits `391fa4c`, `bc51049`, `2e5cd9b`, `b82713e`, `2766488`). Angular tests 13 → 95; backend unchanged (318 + 44 + 326). Sign-in follows your D-73; the AI's frontend choices are D-74. Each task was also checked in headless Chrome against the local API; the full §7.2 flow with role switching passed with no console errors or warnings. Two bugs were found that way and fixed before commit (a dev-mode warning from the role switch, and the reserve panel sending Adjust for a new component). The smoke test gained a deep-link and a write-preflight check (14 of 14 locally). **40a (your approval):** CI 45320475664 green (44 + 318 + 326, Angular 95); deploy run 45320810838 (`deploy_infra=false`) green, smoke 15 of 15 at `+9ffa6f5`, 7 Key Vault references Resolved. The §7.2 browser flow on the Azure URLs passed with no console errors or warnings and no 5xx (claim `CLM-2026-0000002`; GL Posted in 1.4 s; download from Blob storage with a SAS signature). Two script problems on Azure are logged in ai-log (a stale check on the Reopen option, and one run that stopped at sign-in in the browser).
 
 **P7 – Local DevOps extras** (most of the Azure and CI/CD work moved to P2.5)
 41. **[Optional]** Dockerfiles and `docker-compose.yml` (SQL 2022, API, web), checked only by a CI job (`docker compose build` plus a health check), since Docker isn't used locally (D-42). Drop this if time is short.
@@ -388,10 +388,11 @@ Each task ends with a **Verify** check. Commit after each task (git init in P0).
 44. ARCHITECTURE.md (structure diagram, data model, CQRS flow, events, jobs, Azure, tradeoffs, linked to DECISIONS). AI-WORKFLOW.md built from ai-log.
 45. Final check: run the brief §7.2 demo script on Azure, run `dotnet test` and `ng test`, and confirm Swagger schemas.
 
-**P6b – Frontend completeness and polish** (after P8)
+**P6b – Frontend completeness and polish** (after P8). **Not optional** (your P6a note, 2026-11-24): S11.3 requires five tabs, so the **Overview and Parties tabs (task 48a) are must-have before submission**; the rest of P6b is polish.
 46. Dashboard: full filter bar (date range, handler text, cause), total count, page size selector, empty state.
 47. FNOL polish: in-force badge, date-time cap, per-step error banners, risk advisory.
-48. Detail polish: Overview tab (editable notes, severity, estimated amount), Parties tab (add/remove, last-claimant disabled), close pre-flight checklist from `/transitions`, waive-critical dialog (supervisor+; NO_CLAIMANT has no waive button), GL retry button, copyable claim number, skeleton loaders.
+48a. **Must-have before submission (S11.3 five tabs):** Overview tab (loss event details, severity badge, estimated amount, editable notes) and Parties tab (role badge, name, contact, active/inactive; add party inline; remove disabled for the last Claimant). *Verify:* component tests, and both tabs in the §7.2 browser flow on Azure.
+48. Detail polish: close pre-flight checklist from `/transitions`, waive-critical dialog (supervisor+; NO_CLAIMANT has no waive button), GL retry button, copyable claim number, skeleton loaders.
 49. Deploy & smoke.
 
 **Stretch backlog:** NetArchTest (3), magic bytes, HMAC local URLs, User Delegation SAS (29s), risk-object edit endpoints in the UI.
@@ -402,7 +403,7 @@ Each task ends with a **Verify** check. Commit after each task (git init in P0).
 3. **P6a, the minimal demo-flow UI.** The live demo needs it.
 4. P8 docs.
 5. P7 local extras.
-6. P6b polish.
+6. P6b polish. **Exception: task 48a (Overview and Parties tabs) is must-have before submission** (S11.3, your P6a note).
 7. Stretch.
 
 ## 10. Decided without clarification

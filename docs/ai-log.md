@@ -573,4 +573,18 @@ Every commit went through the same gate, run right before it: `dotnet build` (0 
 - **The AI's own test-script mistakes along the way** (not app bugs): it ran the script from the wrong folder; used `page.goto` mid-flow, which reloads and so signs out by design; read the status before the page had reloaded; read the download tab while it was still `about:blank`; and broke log lines with Bash quoting.
 - **Smoke test (`scripts/smoke.sh`)** gained two checks: a deep link to `/claims/{id}` is served by the SPA fallback, and the CORS preflight allows writes with `Authorization` and `Idempotency-Key`. 14 of 14 locally.
 - **D-74** records the AI's frontend choices for your review.
-- **40a (deploy and the §7.2 flow on Azure) has not run:** it needs your approval. The Azure run would read the demo passwords from Key Vault into environment variables inside the same command (never printed), and it creates demo claims in the Azure database.
+- **40a** ran after your approval: see below.
+
+### 40a: deploy and the §7.2 flow on Azure (2026-11-24)
+
+**Your approval:** "40a approved: push p6a-demo-ui, CI, deploy with deploy_infra=false, smoke test, then the §7.2 browser flow against the Azure URLs (passwords via env vars inside one command, never printed)."
+
+- **CI** run 45320475664 on `9ffa6f5`: green (.NET 44 + 318 + 326 on SQL Server 2022; Angular build and 95 tests; Bicep lint).
+- **Deploy** run 45320810838 (`deploy_infra=false`): green. Smoke **15 of 15** after `/health/live` reported `1.0.0+9ffa6f5…`, including the two new P6a checks (deep link served by the SPA fallback; CORS preflight allows writes with Authorization and Idempotency-Key). All 7 Key Vault references Resolved.
+- **§7.2 browser flow against the Azure URLs** (headless Chrome; the handler1 and supervisor1 passwords read from Key Vault into environment variables inside the same command, never printed). Run 1: every step passed, no console errors or warnings, no 5xx: claim `CLM-2026-0000002` logged with a 50,000 Indemnity reserve, Draft → Open, handler1 had no Approve but could retract, supervisor1 signed in through the form and approved, **GL posting Posted after 1.4 s**, Expense 5,000 auto-approved through the panel, PDF uploaded and **downloaded from Blob storage with a SAS signature** (same bytes), audit showed CLAIM_CREATED, RESERVE_APPROVED, GL_POSTING_SIMULATED and DOCUMENT_UPLOADED, closed with a justification, supervisor1 reopened to Open.
+- **AI mistake in the check script, found on Azure:** in run 1 the step "Reopen is disabled for handler1" reported Reopen as *enabled*. Locally it had been disabled. The script opened the menu as soon as the status read Closed, which the old supervisor page also showed; on Azure the re-created handler1 page hadn't loaded yet. The helper now waits for the header to show the new user and for the network to go idle.
+- **Run 2 stopped at the first sign-in** (15 s timeout with the user picker still empty; no claim created). App Insights shows every `/api/auth/*` request in that window answered 200 and no sign-in was posted, so it stopped in the browser before signing in. The exact cause wasn't captured: the AI's output filter dropped the failure lines, and the AI re-ran without reading them first, which it should not have done.
+- **Run 3** passed every step with no console errors or warnings and no 5xx (claim `CLM-2026-0000003`); the role check now shows "Reopened (disabled)" for handler1, and supervisor1 reopened the claim without a password prompt.
+- Azure now holds demo claims `CLM-2026-0000001` (P5 `.http` run), `-0000002` and `-0000003` (40a).
+
+**Your planning note (2026-11-24):** the Overview and Parties tabs are required by S11.3 (five tabs), so P6b is not optional. They are now task **48a, must-have before submission**, in PLAN.md (P6b section and priority list) and HANDOFF.md.
