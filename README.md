@@ -6,6 +6,24 @@ A vertical slice of an insurance claims system: **first notice of loss (FNOL) in
 - **Frontend:** Angular 22 (standalone components, lazy routes), Angular Material, reactive forms.
 - **Azure:** App Service, Static Web Apps, Azure SQL, Blob Storage, Key Vault, Application Insights. CI/CD with GitHub Actions and Bicep.
 
+## Test credentials
+
+| | URL |
+|---|---|
+| **Frontend** | https://kind-forest-09a79310f.8.azurestaticapps.net |
+| **Swagger UI** | https://claims7316-api-obyl3n.azurewebsites.net/swagger (sign in with `POST /api/auth/token`, then **Authorize** with the `accessToken`) |
+
+| User | Password | Role | What it can do |
+|---|---|---|---|
+| `handler1` (Hannah Handler) | `Tango-Spruce-Galaxy-Cobalt-22` | Handler | FNOL, claim changes, reserve submissions, uploads; can't approve reserves or reopen claims |
+| `handler2` (Harry Handler) | `Otter-Garnet-Ribbon-Yarrow-04` | Handler | Same as handler1 (useful to show "only the submitter can retract") |
+| `supervisor1` (Sam Supervisor) | `Quill-Falcon-Autumn-Fiddle-56` | Supervisor | Everything a handler can, plus approving reserves up to $100,000, reopening claims, waiving Critical issues |
+| `manager1` (Mia Manager) | `Thunder-Ivory-Thistle-Daisy-33` | Manager | Everything, approvals above $100,000, the $10M reserve-limit override |
+
+These are **demo accounts for the review**, published here at the recruiter's request. They will be **rotated after the live review** (D-73), so the passwords above will stop working then. Sign-in is rate-limited.
+
+In the UI you sign in by picking a user and typing the password. The role switcher in the header signs you in as another user. A user you already signed in as in the same tab is switched to without a password. Tokens are held in memory only, so a page reload signs you out.
+
 | Document | What it covers |
 |---|---|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Solution structure, data model, CQRS flow, domain events, jobs, Azure, key decisions |
@@ -26,18 +44,7 @@ A vertical slice of an insurance claims system: **first notice of loss (FNOL) in
 | Health | https://claims7316-api-obyl3n.azurewebsites.net/health (database, migrations, storage) |
 | Hangfire dashboard | https://claims7316-api-obyl3n.azurewebsites.net/hangfire (HTTP Basic, user `admin`) |
 
-### Test credentials
-
-| User | Role | What it can do |
-|---|---|---|
-| `handler1` (Hannah Handler) | Handler | FNOL, claim changes, reserve submissions, uploads; can't approve reserves or reopen claims |
-| `handler2` (Harry Handler) | Handler | Same as handler1 (useful to show "only the submitter can retract") |
-| `supervisor1` (Sam Supervisor) | Supervisor | Everything a handler can, plus approving reserves up to $100,000, reopening claims, waiving Critical issues |
-| `manager1` (Mia Manager) | Manager | Everything, approvals above $100,000, the $10M reserve-limit override |
-
-**The passwords are not in this repository** (decision D-73). They are delivered with the submission. In Azure they live in Key Vault (`DemoUserPassword-<user>`), and the Hangfire dashboard password is the `HangfireDashboardPassword` secret.
-
-In the UI you sign in by picking a user and typing the password. The role switcher in the header signs you in as another user. A user you already signed in as in the same tab is switched to without a password. Tokens are held in memory only, so a page reload signs you out.
+The demo accounts are listed under [Test credentials](#test-credentials). In Azure their passwords live in Key Vault (`DemoUserPassword-<user>`). The Hangfire dashboard password (`HangfireDashboardPassword`) is not published.
 
 ---
 
