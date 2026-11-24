@@ -588,3 +588,29 @@ Every commit went through the same gate, run right before it: `dotnet build` (0 
 - Azure now holds demo claims `CLM-2026-0000001` (P5 `.http` run), `-0000002` and `-0000003` (40a).
 
 **Your planning note (2026-11-24):** the Overview and Parties tabs are required by S11.3 (five tabs), so P6b is not optional. They are now task **48a, must-have before submission**, in PLAN.md (P6b section and priority list) and HANDOFF.md.
+
+### Root cause of the 40a run-2 sign-in failure (2026-11-24)
+
+**Your request before accepting P6a:** run only the sign-in step against Azure at least 10 times with full console and network logs (unfiltered), including at least 2 runs after 20+ minutes of API idle; check the form when `/api/auth/users` is late or fails; fix a real UI race with a test that reproduces a delayed response, or prove with logs that it was only the script.
+
+**Probe.** `signin-probe.mjs` (session scratchpad): each run uses a fresh browser context and signs in as handler1 the way the 40a script did, opening the picker as soon as the sign-in URL is reached. It keeps every console message, page error and request (start, end, status or failure) in one JSON file per run, plus the time of the click relative to the users response. The handler1 password was read from Key Vault into the environment inside the same command, never printed.
+
+**Results against Azure (deployed build `+9ffa6f5`, before the fix):**
+- **12 warm runs**, 7 s apart: **10 signed in, 2 failed** (runs 9 and 11) with the same 15 s timeout as 40a run 2. Every `/api/auth/users` call answered 200 (server time under 10 ms), with no console errors and no page errors in any run. **In both failures the picker was clicked before the users response had arrived** (3270 ms vs 3279 ms; 2883 ms vs 2892 ms). In all 10 successes the click came after it.
+- **2 cold runs**, each after 21 minutes with no calls to the API (04:16:52Z and 04:38:00Z): both signed in. Users answered in 35 ms and 77 ms; only the first `/health` (about 320 ms) and token call (517 ms) were slower. The API is App Service B1 with Always On, so there is no real cold start; idle time is not the trigger.
+- **Locally, users response delayed 3 s:** 2 of 2 failed the same way. **Users request failing (503):** the picker stayed empty for good, with no message in the form (the 8 s snackbar had gone), and the console showed an uncaught `ERROR HttpErrorResponse` because the form subscribed without an error handler.
+
+**Root cause: a real UI race, not only the script.** The picker was rendered enabled before the user list arrived, and a Material select with no options does not open. A click in that window just focused the empty field. Time from page load to the users request varied between 0.7 s and 3.2 s (app start-up and the lazy sign-in chunk). The 40a script clicked immediately and sometimes won the race by milliseconds. A person rarely clicks that fast, but on a slow connection they would see a picker that doesn't open, and on a failed request a picker that never fills. So the script exposed a real defect in the form.
+
+**Fix (`a0b9d67`, D-75):**
+- While the list loads, the picker is disabled and shows "Loading users…", and Sign in is disabled.
+- A transient failure (no answer or 5xx) is retried once after 1.5 s; after that an inline alert with "Try again" replaces the empty picker (no snackbar).
+- The sign-in form and the header's role switcher now handle the error, so nothing reaches the global error handler.
+- **Tests:** four new tests reproduce a delayed response, a transient failure that recovers, a second failure recovered through "Try again", and a non-transient failure. **All four fail against the old form** (checked by running them with the old `sign-in.ts`) and pass with the fix. Angular tests 95 → 99; the commit gate ran green (0 warnings; 44 + 318 + 326; 99).
+- **Locally in Chrome with the fix:** users delayed 3 s, the old click-immediately helper signed in 3 of 3 (the click waits for the enabled picker); the wait-for-enabled helper 3 of 3; no delay 3 of 3; users failing, the inline error and "Try again" shown, one automatic retry made, no uncaught error in the console.
+- **AI mistakes in this step:**
+  - The first local probe set lost two runs: the probe crashed on an unhandled promise rejection in its own network logger after a browser context closed. This was a harness bug, fixed and re-run (3 of 3).
+  - A quoting error broke the wrapper script once.
+  - In 40a the AI's output filter hid run 2's failure lines and it re-ran without reading them. This time every run's full log is kept in `logs/probe/`.
+
+**Not yet done (needs your approval):** push `a0b9d67`, deploy (`deploy_infra=false`), and repeat the 10-run sign-in probe against Azure with the fixed form.
