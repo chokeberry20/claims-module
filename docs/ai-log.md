@@ -553,3 +553,5 @@ Branch `p4-infrastructure` (from `main` = `c163a53`). Build + all tests right be
 **Your P5 review (2026-11-24): accepted.** Your own checks: `/health` all Healthy at `+f42f826`, Swagger 200 with 32 endpoints covering S10 and the brief, anonymous `/api/claims` 401. `main` fast-forwarded to `p5-api` and pushed.
 
 **Your decision for P6a (2026-11-24), D-73:** demo users sign in to the UI only through a sign-in form (user picker and password field); no password in frontend code or config. The role switcher signs in again as another user. Tokens are kept in memory for the tab only, never in localStorage. Before submission the demo passwords are rotated to readable ones for the reviewers. `HANDOFF.md` pushed to `main` (`5ab51c0`) with your approval.
+
+**Your standing rule (2026-11-24):** documentation-only commits may be pushed to `main` without asking. Deploys, Azure writes and code changes on `main` still need your approval. `a7f92e7` pushed with your approval.
