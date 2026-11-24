@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import {
   AbstractControl,
+  FormControl,
   NonNullableFormBuilder,
   ReactiveFormsModule,
   ValidationErrors,
@@ -40,6 +41,7 @@ import { MoneyPipe } from '../../shared/money.pipe';
 import { labelOf } from '../../shared/status-badge';
 import {
   errorsByStep,
+  filterCauseCodes,
   fnolWarnings,
   hasClaimant,
   isInFuture,
@@ -122,6 +124,21 @@ export class FnolIntake {
     { initialValue: [] as CauseOfLossCode[] },
   );
 
+  /**
+   * S11.2 "searchable dropdown": the field holds what the user types, or the selected code. The form's
+   * causeOfLossCode is set only when it is a known code, so free text can't be submitted.
+   */
+  protected readonly causeSearch = new FormControl('', {
+    nonNullable: true,
+    validators: () => (this.step1?.controls.causeOfLossCode.value ? null : { required: true }),
+  });
+  private readonly causeText = toSignal(this.causeSearch.valueChanges, { initialValue: '' });
+  protected readonly causeOptions = computed(() => filterCauseCodes(this.causeCodes(), this.causeText()));
+  protected readonly causeLabel = (code: string | null): string => {
+    const cause = this.causeCodes().find((c) => c.code === code);
+    return cause ? `${cause.name} (${cause.code})` : (code ?? '');
+  };
+
   protected readonly policyOptions = toSignal(
     this.step1.controls.policy.valueChanges.pipe(
       filter((v): v is string => typeof v === 'string'),
@@ -186,6 +203,23 @@ export class FnolIntake {
   protected readonly stepErrors = signal<string[][]>([[], [], []]);
 
   constructor() {
+    // Typed text → the code only when it is a known one; a code set by the form (or tests) → the field.
+    const causeCode = this.step1.controls.causeOfLossCode;
+    this.causeSearch.valueChanges.pipe(takeUntilDestroyed()).subscribe((value) => {
+      const code = this.causeCodes().some((c) => c.code === value) ? value : '';
+      if (causeCode.value !== code) {
+        causeCode.setValue(code, { emitEvent: false });
+        causeCode.markAsTouched();
+        this.step1.updateValueAndValidity();
+      }
+    });
+    causeCode.valueChanges.pipe(takeUntilDestroyed()).subscribe((code) => {
+      if (code && this.causeSearch.value !== code) {
+        this.causeSearch.setValue(code, { emitEvent: false });
+      }
+      this.causeSearch.updateValueAndValidity({ emitEvent: false });
+    });
+
     this.reserve.controls.include.valueChanges.pipe(takeUntilDestroyed()).subscribe((include) => {
       const { amount, changeReason } = this.reserve.controls;
       amount.setValidators(include ? [Validators.required, this.reserveAmountValidator()] : []);

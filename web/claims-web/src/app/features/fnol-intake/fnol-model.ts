@@ -128,3 +128,15 @@ export function toCreateRequest(v: FnolValues): CreateClaimRequest {
 export function partyName(p: PartyInput): string {
   return p.type === 'Company' ? (p.companyName ?? '') : `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim();
 }
+
+/**
+ * The searchable cause-of-loss list (S11.2): case-insensitive match on name, code or peril category. A
+ * selected code (the field shows its label) or empty text lists every cause.
+ */
+export function filterCauseCodes<T extends { code: string; name: string; perilCategory: string }>(codes: readonly T[], text: string): T[] {
+  const term = text.trim().toLowerCase();
+  if (!term || codes.some((c) => c.code === text)) {
+    return [...codes];
+  }
+  return codes.filter((c) => `${c.name} ${c.code} ${c.perilCategory}`.toLowerCase().includes(term));
+}

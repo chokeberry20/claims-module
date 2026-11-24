@@ -60,12 +60,21 @@
 
       <mat-form-field appearance="outline">
         <mat-label>Cause of loss</mat-label>
-        <mat-select formControlName="causeOfLossCode" data-testid="cause-of-loss">
-          @for (c of causeCodes(); track c.code) {
-            <mat-option [value]="c.code">{{ c.name }} ({{ c.code }})</mat-option>
+        <input
+          matInput
+          [formControl]="causeSearch"
+          [matAutocomplete]="causeAuto"
+          placeholder="Type to search: name, code or peril"
+          data-testid="cause-of-loss"
+        />
+        <mat-autocomplete #causeAuto="matAutocomplete" [displayWith]="causeLabel" autoActiveFirstOption>
+          @for (c of causeOptions(); track c.code) {
+            <mat-option [value]="c.code">{{ c.name }} ({{ c.code }}) · {{ c.perilCategory }}</mat-option>
+          } @empty {
+            <mat-option disabled>No cause of loss matches</mat-option>
           }
-        </mat-select>
-        <mat-error>Cause of loss is required.</mat-error>
+        </mat-autocomplete>
+        <mat-error>Choose a cause of loss from the list.</mat-error>
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="span-2">
@@ -197,7 +206,7 @@
       <tbody>
         <tr><th>Policy</th><td>{{ selectedPolicy() ? displayPolicy(selectedPolicy()) : 'Unknown policy (none linked)' }}</td></tr>
         <tr><th>Loss date</th><td>{{ lossDateIso() | date: 'medium' }}</td></tr>
-        <tr><th>Cause of loss</th><td>{{ step1.controls.causeOfLossCode.value }}</td></tr>
+        <tr><th>Cause of loss</th><td>{{ causeLabel(step1.controls.causeOfLossCode.value) }}</td></tr>
         <tr><th>Description</th><td class="pre">{{ step1.controls.lossDescription.value }}</td></tr>
         <tr><th>Location</th><td>{{ step1.controls.lossLocation.value || '—' }}</td></tr>
         <tr><th>Estimated loss</th><td>{{ step1.controls.estimatedLossAmount.value | money }}</td></tr>

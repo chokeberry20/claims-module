@@ -12,6 +12,7 @@ import { ConfirmService } from '../../shared/confirm-dialog';
 import { FnolIntake } from './fnol-intake';
 import {
   errorsByStep,
+  filterCauseCodes,
   fnolWarnings,
   isInFuture,
   isLossInForce,
@@ -249,5 +250,44 @@ describe('FnolIntake (S11.2)', () => {
     c().step1.patchValue({ unknownPolicy: true });
     await fixture.whenStable();
     expect(el.querySelector('[data-testid="reserve-amount"]')).toBeNull();
+  });
+
+  it('cause of loss: typing filters the list, only a listed code is accepted (S11.2 searchable dropdown)', async () => {
+    const search = (fixture.componentInstance as unknown as { causeSearch: { setValue(v: string): void } }).causeSearch;
+    const code = () => (c().step1 as unknown as { controls: { causeOfLossCode: { value: string } } }).controls.causeOfLossCode.value;
+
+    search.setValue('collis');
+    await fixture.whenStable();
+    expect(code()).toBe('');
+
+    search.setValue('AUTO-COLL'); // what the autocomplete writes when an option is chosen
+    await fixture.whenStable();
+    expect(code()).toBe('AUTO-COLL');
+    const input = el.querySelector<HTMLInputElement>('[data-testid="cause-of-loss"]')!;
+    expect(input.value).toBe('Vehicle collision (AUTO-COLL)');
+
+    search.setValue('Vehicle collision (AUTO-COLL) x'); // edited after choosing: no longer a valid choice
+    await fixture.whenStable();
+    expect(code()).toBe('');
+  });
+});
+
+describe('filterCauseCodes', () => {
+  const codes = [
+    { code: 'COL-FIRE', name: 'Fire', perilCategory: 'Property' },
+    { code: 'COL-VEH-COL', name: 'Vehicle collision', perilCategory: 'Auto' },
+    { code: 'COL-THEFT', name: 'Theft', perilCategory: 'Crime' },
+  ];
+
+  it('matches name, code or peril, case-insensitively', () => {
+    expect(filterCauseCodes(codes, 'fire').map((c) => c.code)).toEqual(['COL-FIRE']);
+    expect(filterCauseCodes(codes, 'veh-col').map((c) => c.code)).toEqual(['COL-VEH-COL']);
+    expect(filterCauseCodes(codes, 'CRIME').map((c) => c.code)).toEqual(['COL-THEFT']);
+    expect(filterCauseCodes(codes, 'flood')).toEqual([]);
+  });
+
+  it('lists everything for empty text or an already selected code', () => {
+    expect(filterCauseCodes(codes, '  ')).toHaveLength(3);
+    expect(filterCauseCodes(codes, 'COL-FIRE')).toHaveLength(3);
   });
 });
