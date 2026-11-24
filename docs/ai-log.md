@@ -657,3 +657,17 @@ Every commit went through the same gate, run right before it: `dotnet build` (0 
   - The conversation export for brief §4.6. The Claude Code transcripts are on your machine; `/export` in Claude Code writes the current conversation to a file. AI-WORKFLOW §7 says it is provided with the submission.
   - The password rotation before submission (D-73).
   - P6b task 48a (Overview and Parties tabs) is still must-have.
+
+### Attribution note: the reviewer session (2026-11-24)
+
+**Your clarification:** the second Claude session (Claude desktop app, Code tab) didn't only cross-review the plan. **It reviewed every phase with independent verification**: re-running build and tests, inspecting the database and the live Azure endpoints. The findings recorded above as "your review" or "found by you" reached this session through you. Specifically, the reviewer session caught:
+- the false "6/6 pass" (P0, C-13);
+- the flaky test and the exact-only claim-number search (P3 review);
+- the "cold start" misdiagnosis (P2.5);
+- it pushed for the root cause of the sign-in race (P6a).
+
+It was wrong twice:
+- moving Idempotency-Key handling to Stretch (plan rev 4);
+- the same-year lock test that couldn't detect a missing HOLDLOCK (P2 review; this session predicted that and proved it, then added the lock-level tests).
+
+AI-WORKFLOW.md §1, §2, §4, §5 and §6 now describe this writer / reviewer / decider pattern. The earlier entries are left as written.

@@ -7,10 +7,32 @@ How this project was built with AI assistance (brief §4.5). The full, chronolog
 | Tool | Used for |
 |---|---|
 | **Claude Code** (CLI, model Claude Opus 5.5) | Everything that touched the repository: requirements analysis, planning, all code and tests, Bicep and the GitHub Actions workflows, running builds, tests and deployments, reading Azure logs, and drafting the documentation (including this report, which I then reviewed and edited) |
-| **A second, independent Claude session** | A cross-review of the plan before any code was written: a fresh context with no stake in the first answer |
+| **A second, independent Claude session** (Claude desktop app, Code tab) | **The reviewer**, for the plan and then for every phase. It had its own context and no stake in the first session's answers. It verified independently: it re-ran the build and tests, inspected the database, and called the live Azure endpoints. Its findings came back to the writer session through me (see §2) |
 | Headless Chrome, driven by the AI through `playwright-core` | Checking the UI end to end, locally and against Azure, with the console and network logs kept |
 
 ## 2. How the workflow was structured
+
+**Three roles: writer, reviewer, decider.**
+
+| Role | Who | What it did |
+|---|---|---|
+| **Writer** | Claude Code (CLI) | Planned, implemented, tested, deployed and documented each phase, then stopped and reported its results |
+| **Reviewer** | A second Claude session (desktop app, Code tab) | Checked each phase's claims instead of reading them. It re-ran build and tests (several times, to catch flakiness), looked at the database schema and data, called `/health`, Swagger and the Hangfire dashboard on Azure, and compared behaviour with the spec |
+| **Decider** | Me | Read both sides, checked what mattered against the spec, accepted or rejected each finding, and sent the accepted ones back to the writer as corrections or decisions. Only I could approve pushes, deploys and phase acceptance |
+
+Why two sessions: a session that wrote the code tends to confirm its own story, and a fresh one doesn't.
+
+The reviewer **caught real problems**:
+- the false "6/6 pass" in P0;
+- a flaky integration test and an exact-only claim-number search in P3;
+- the "cold start" misdiagnosis in P2.5;
+- in P6a, it pushed for a root cause of the intermittent sign-in failure instead of accepting a passing re-run.
+
+It was also **wrong twice**:
+- it suggested moving Idempotency-Key handling to Stretch;
+- it designed a lock test that couldn't detect a missing `HOLDLOCK`.
+
+So its findings were inputs to my decision, not instructions. In [docs/ai-log.md](docs/ai-log.md) these findings appear in the phase reviews ("your review", "found by you"), because they reached the writer through me.
 
 **Context loading.**
 - Both source documents (the brief and the functional specification, both confidential) were extracted to plain text *outside the repository* and loaded in full at the start.
@@ -26,7 +48,7 @@ How this project was built with AI assistance (brief §4.5). The full, chronolog
 
 **Prompt sequencing: phases with review gates.**
 - Work went phase by phase: P0 bootstrap → P1 domain → P2 persistence → P2.5 a deployed walking skeleton → P3 application → P4 infrastructure → P5 API → P6a demo UI → P8 docs.
-- Each phase ended with **"stop for my review"**. I re-ran the tests myself, checked the database or the Azure deployment, and either accepted the phase or sent corrections. Only an accepted phase was merged to `main`.
+- Each phase ended with **"stop for my review"**. The reviewer session verified it independently, I decided on its findings and checked the key points myself, and then either accepted the phase or sent corrections. Only an accepted phase was merged to `main`.
 
 **Standing rules I gave the AI** (in ai-log and HANDOFF §3):
 - Re-run build and **all** tests immediately before every commit and report *that* run's output. This was introduced after the AI reported a stale "6/6 pass"; see example 1.
@@ -40,7 +62,7 @@ How this project was built with AI assistance (brief §4.5). The full, chronolog
 - **Probes before claims:** a throwaway test to check how EF actually behaves before writing it down.
 - **Real deployments with smoke tests:** a script that waits for the deployed commit and checks 15 things.
 - **Real browser runs** against Azure.
-- I then checked the important parts independently: the database schema, `/health`, Swagger, the Key Vault role assignments, the Hangfire dashboard.
+- Then the reviewer session and I checked the important parts independently: the database schema, `/health`, Swagger, the Key Vault role assignments, the Hangfire dashboard.
 
 ## 3. Representative prompts
 
@@ -71,15 +93,16 @@ How this project was built with AI assistance (brief §4.5). The full, chronolog
   - the stricter numeric-ID OIDC subjects (D-63).
 - **API behaviour:** unparsable JSON is 400, not 422 (D-72).
 - **Security of the demo sign-in:** a form only, with no password in the frontend; tokens in memory for the tab; readable passwords rotated in before submission (D-73).
-- **Test design:** the deterministic HOLDLOCK test idea (ai-log P2). The AI predicted it couldn't detect the bug and proved that prediction, so we added lock-level tests that can.
+- **Which reviewer findings to act on:** e.g. keeping Idempotency-Key in the baseline against the reviewer, and keeping its HOLDLOCK test but adding the writer's lock-level tests, which can actually detect the bug (§5, example 3).
 - **Scope:** the Overview and Parties tabs are must-have before submission, not polish.
 
 ## 5. Where the AI was wrong, and how it was corrected
 
-The ai-log records many more cases. These are the most instructive.
+The ai-log records many more cases. These are the most instructive. Each says who caught it: the writer's own checks, the reviewer session, or me.
 
 **1. A false "tests pass" claim (P0, C-13).**
-- **What the AI did:** reported "6/6 tests pass" for P0. I re-ran `dotnet test` myself: 1 test failed.
+- **What the AI did:** the writer session reported "6/6 tests pass" for P0.
+- **Caught by the reviewer session:** it re-ran `dotnet test` independently: 1 test failed. I rejected the phase.
 - **Process cause:** after the last task the AI had only rebuilt, then quoted the test result from an earlier task.
 - **Technical cause:** the AI wrote a JSON file through a shell heredoc, which collapsed `.\SQLEXPRESS01`'s backslash into an invalid JSON escape.
 - **Corrections:**
@@ -91,10 +114,10 @@ The ai-log records many more cases. These are the most instructive.
 - **What the AI did:** first banned waiving Critical validation issues, although S4.2 says "(or all waived)". In rev 2 it then allowed waiving everything, including the missing-Claimant issue, while a separate structural check still blocked opening. That would have produced a confusing "waived but still blocking" state.
 - **Correction:** I specified the rule: supervisor+ with a mandatory reason and an audit event, and NO_CLAIMANT not waivable, because BR-C-03 requires a Claimant independently.
 
-**3. An AI reviewer over-corrected (plan rev 4).**
-- **What happened:** the independent Claude review session suggested moving Idempotency-Key handling and the append-only audit trigger to Stretch, to save time.
-- **What I found:** both are explicit requirements, S10 and S14.2/BR-A-01.
-- **Lesson:** an AI reviewer can drift towards scope reduction; every suggestion still has to be checked against the source.
+**3. The reviewer was wrong too, twice (plan rev 4 and P2).**
+- **Scope reduction (plan rev 4):** the reviewer session suggested moving Idempotency-Key handling and the append-only audit trigger to Stretch, to save time. I checked the spec: both are explicit requirements (S10; S14.2/BR-A-01). Both stayed in the baseline.
+- **A test that couldn't fail (P2 review):** to prove the claim-number generator needs `HOLDLOCK`, the reviewer designed a deterministic test: tx1 allocates and keeps its transaction open, and tx2 must time out allocating the same year. The writer session **predicted this can't detect a missing `HOLDLOCK`**: once tx1 has inserted the counter row, tx2 blocks on that row's lock under any isolation level. Implemented as designed, the test passed **both with and without** `HOLDLOCK`, three runs each, so the prediction held. What does detect it: `Range*` key locks in `sys.dm_tran_locks` after the first-of-year MERGE, and a timeout when tx2 allocates an *adjacent new year*. Without `HOLDLOCK` those two tests failed 10 out of 10 times; with it they passed 10 out of 10. The reviewer's test was kept, renamed for what it really proves (serialisation).
+- **Lesson:** a reviewer is another model, not an oracle. Its findings were inputs to my decision, and the writer's evidence could overrule them.
 
 **4. Unverified claims about tooling (P2.5).** Three separate cases:
 - **The OIDC subject format.** The AI used the documented classic format for the GitHub OIDC federated credentials and assumed it was right; the first deploy failed at Azure login. This repository sends numeric owner and repo IDs. Fixed to the subject actually presented, which is also stricter.
@@ -105,13 +128,13 @@ The ai-log records many more cases. These are the most instructive.
 
 **5. A wrong diagnosis (P2.5).**
 - **What the AI did:** proposed raising the smoke test's health timeout to 90 s for a "cold Basic SQL connection".
-- **My correction:** Basic is a DTU tier and never auto-pauses; the ~60 s more likely came from EF's retry strategy retrying a failing connection inside the health check.
+- **Caught by the reviewer session, confirmed by me:** Basic is a DTU tier and never auto-pauses; the ~60 s more likely came from EF's retry strategy retrying a failing connection inside the health check.
 - **The AI verified this locally:** 17 s and 86 s for the old checks against a dead database.
 - **Fix:** made the health checks fail fast (D-65) instead of hiding the problem with a longer timeout.
 
 **6. A race in the sign-in form (P6a, D-75).**
 - **What happened:** during the deployment check on Azure, one browser run timed out at sign-in, and the AI re-ran without reading the failure lines its own filter had hidden.
-- **My response:** I didn't accept it and asked for a root cause (prompt 5).
+- **Pushed back by the reviewer session:** a sign-in form that passes "on the third try" isn't acceptable for a live demo. I sent the request for a root cause (prompt 5) and held P6a acceptance until it was answered.
 - **The evidence:**
   - 12 runs against Azure with full logs: 2 failed, both exactly the runs in which the user picker was clicked milliseconds before the user list arrived.
   - A Material select with no options doesn't open.
@@ -119,7 +142,13 @@ The ai-log records many more cases. These are the most instructive.
 - **Fix:** loading and error states, a retry, and an inline error with "Try again", with tests that fail on the old form.
 - **After the fix:** 12 of 12 runs on Azure signed in, clicking immediately on page load.
 
-**Smaller ones, caught by the AI's own tests or checks:**
+**7. A flaky test and a spec shortfall, from the P3 review.**
+- **Flaky test.** The reviewer ran the whole suite 5 times; the first run failed 1 of 267 integration tests. The writer's first guess (two timing assertions) was wrong. Ten normal runs were all green, so it reproduced the failure under CPU load: 1 in 3 runs.
+  - **Root cause:** a startup-failure test raced `WebApplicationFactory` disposing the service provider.
+  - **Fix:** the test calls the same start-up validator directly, with no threads. After the fix, 10 out of 10 runs were green.
+- **Exact-only search.** The writer had made claim-number search exact-only, claiming a value-converted column needs raw SQL for substrings. S10.1 asks for partial search. The column is a plain NVARCHAR, so EF can translate it. Fixed with a mapped database function, so `.Contains` becomes one SQL LIKE. Tests cover a middle substring, lowercase input and an escaped `%`.
+
+**Smaller ones, caught by the writer's own tests or checks:**
 - a soft-delete interceptor that rewrote the whole row;
 - a concurrency "touch" that changed nothing, so EF didn't bump the row version;
 - a test for a lock race that deadlocked on the connection pool;
@@ -134,13 +163,14 @@ The ai-log records many more cases. These are the most instructive.
 - **Volume with consistency.** EF configurations for 14 tables following one set of conventions, 37 commands and queries with their validators, 688 backend and 99 frontend tests, Bicep, two workflows. All of it was produced in hours, and kept consistent because decisions lived in DECISIONS.md.
 - **Proving instead of asserting.** Mutation checks, throwaway probes, lock-level SQL evidence, deploy runs with a deliberate failure, browser runs with full logs. The AI was good at designing these experiments once asked for evidence.
 - **Azure and CI plumbing.** OIDC, Key Vault references, managed-identity SQL users and the runner sign-in issue. The AI diagnosed these from logs much faster than I would have.
+- **A second model as reviewer.** The independent session found the problems the writer was least likely to see in its own work: a stale test result, a flaky test, a spec shortfall, a wrong diagnosis, a race accepted too early. Every phase's claims were checked by a model that hadn't made them.
 
 **Where it needed the most supervision:**
 - **Claims about its own results.** "Tests pass" and "the step now fails on errors" were stated before they were checked. The fix was process (rules, scripts that refuse to commit), not trust.
 - **Assumptions about external systems:** the OIDC subject format, an action's inputs, timing in Azure. These were right in the documentation and wrong in practice.
 - **Priorities.** Left alone, the plan put deployment and the UI last. Scope and order were my decisions.
 
-**Overall.** The AI wrote nearly all of the code. The engineering judgment came from reviewing, deciding and demanding proof:
+**Overall.** The AI wrote nearly all of the code, and a second AI checked it. The engineering judgment came from deciding between them and demanding proof:
 - what to build first;
 - which spec reading to follow;
 - what counts as done.
