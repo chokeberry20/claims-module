@@ -549,3 +549,5 @@ Branch `p4-infrastructure` (from `main` = `c163a53`). Build + all tests right be
   - The AI's PowerShell commit command broke on double quotes in the message (Windows PowerShell 5.1 passes them to git unescaped). Nothing was committed, and it was redone from a message file.
   - The AI used the KQL reserved word `last` as a column name again, the P4 mistake. This time the error was read at once instead of being waited on.
   - The AI's download check printed a decoding error because PowerShell had already returned text. The error text itself showed the right content.
+
+**Your P5 review (2026-11-24): accepted.** Your own checks: `/health` all Healthy at `+f42f826`, Swagger 200 with 32 endpoints covering S10 and the brief, anonymous `/api/claims` 401. `main` fast-forwarded to `p5-api` and pushed.
