@@ -18,7 +18,7 @@ internal static class ApiSetup
 {
     public static IServiceCollection AddClaimsApi(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddControllers()
+        services.AddControllers(o => o.Filters.Add<MalformedJsonFilter>())
             .AddJsonOptions(o => JsonSetup.Configure(o.JsonSerializerOptions))
             .ConfigureApiBehaviorOptions(o => o.InvalidModelStateResponseFactory = ApiErrors.InvalidModelState);
         services.ConfigureHttpJsonOptions(o => JsonSetup.Configure(o.SerializerOptions));

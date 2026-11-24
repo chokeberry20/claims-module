@@ -13,6 +13,7 @@ namespace ClaimsModule.API.Controllers;
 /// </summary>
 [ApiController]
 [Produces("application/json")]
+[ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest, "application/problem+json")]
 [ProducesResponseType<ApiError>(StatusCodes.Status401Unauthorized, "application/problem+json")]
 [ProducesResponseType<ApiError>(StatusCodes.Status500InternalServerError, "application/problem+json")]
 public abstract class ApiControllerBase : ControllerBase

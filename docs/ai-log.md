@@ -522,3 +522,5 @@ Branch `p4-infrastructure` (from `main` = `c163a53`). Build + all tests right be
   
   Locally 9 of 9 checks pass (the dashboard check is Azure-only).
 - **35a is waiting for your approval:** push `p5-api`, CI, a deploy with `deploy_infra=true` (the new `ASPNETCORE_FORWARDEDHEADERS_ENABLED` app setting), then `run-http.ps1` against the Azure URL, with the handler1 and supervisor1 passwords read from Key Vault into environment variables and never printed.
+
+**Your P5 review (2026-11-24):** accepted the MediatR-only role checks (D-72) and the 401 fallback, and the test-hang workaround; don't install dotnet-stack unless the hang returns. **One correction:** syntactically malformed JSON must be **400**, not 422; type and enum mismatches and validation stay 422. Implemented with a resource filter that parses the buffered JSON body before model binding (reliable, unlike matching error-message text). Tests: four unparsable bodies (garbage, an unterminated string, a trailing comma, a truncated array) give 400 `MalformedRequest`; a wrong type, an unknown enum name, an empty body and a bad query enum give 422 per field.

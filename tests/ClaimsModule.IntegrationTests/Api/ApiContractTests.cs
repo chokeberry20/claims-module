@@ -156,16 +156,41 @@ public sealed class ApiContractTests(SqlServerDatabaseFixture db) : IDisposable
         logs.Entries.ShouldNotContain(e => e.Level >= Microsoft.Extensions.Logging.LogLevel.Error, string.Join(" | ", logs.Entries.Where(e => e.Level >= Microsoft.Extensions.Logging.LogLevel.Error).Select(e => e.Category)));
     }
 
-    [Fact]
-    public async Task Malformed_json_and_unknown_enum_values_give_the_same_422_shape()
+    /// <summary>A raw JSON body; single quotes in the source stand for double quotes.</summary>
+    private static StringContent Json(string body) => new(body.Replace('\'', '"'), Encoding.UTF8, "application/json");
+
+    [Theory]
+    [InlineData("{ not json")]
+    [InlineData("{ 'lossDescription': 'unterminated }")]
+    [InlineData("{ 'lossDate': '2026-01-01T00:00:00Z', }")] // trailing comma: not JSON
+    [InlineData("[1, 2")]
+    public async Task Unparsable_json_gives_400_with_the_error_body(string body)
     {
         using var client = await _factory.SignedInClientAsync("handler1");
 
-        var malformed = await client.PostAsync("/api/claims", new StringContent("{ not json", Encoding.UTF8, "application/json"));
-        (await malformed.ErrorAsync(HttpStatusCode.UnprocessableEntity, "ValidationError")).GetProperty("codes").GetRawText().ShouldContain("REQUEST_MALFORMED");
+        var response = await client.PostAsync("/api/claims", Json(body));
 
-        var badEnum = await client.GetAsync("/api/claims?status=Sleeping");
-        await badEnum.ErrorAsync(HttpStatusCode.UnprocessableEntity, "ValidationError");
+        var error = await response.ErrorAsync(HttpStatusCode.BadRequest, "MalformedRequest");
+        error.Codes("General").ShouldBe(["REQUEST_MALFORMED"]);
+        error.GetProperty("detail").GetString().ShouldStartWith("JSON syntax error at line 1");
+    }
+
+    [Fact]
+    public async Task Parsable_json_with_wrong_types_or_unknown_enum_names_gives_422_per_field()
+    {
+        using var client = await _factory.SignedInClientAsync("handler1");
+
+        var wrongType = await client.PostAsync("/api/claims", Json("{ 'lossDate': 'not-a-date' }"));
+        (await wrongType.ErrorAsync(HttpStatusCode.UnprocessableEntity, "ValidationError")).Codes("LossDate").ShouldBe(["REQUEST_VALUE_INVALID"]);
+
+        var unknownEnum = await client.PostAsync("/api/claims", Json("{ 'severity': 'Huge' }"));
+        (await unknownEnum.ErrorAsync(HttpStatusCode.UnprocessableEntity, "ValidationError")).Codes("Severity").ShouldBe(["REQUEST_VALUE_INVALID"]);
+
+        var empty = await client.PostAsync("/api/claims", new StringContent(string.Empty, Encoding.UTF8, "application/json"));
+        await empty.ErrorAsync(HttpStatusCode.UnprocessableEntity, "ValidationError");
+
+        var badQueryEnum = await client.GetAsync("/api/claims?status=Sleeping");
+        await badQueryEnum.ErrorAsync(HttpStatusCode.UnprocessableEntity, "ValidationError");
     }
 
     [Fact]

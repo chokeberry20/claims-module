@@ -113,17 +113,17 @@ internal static class ApiErrors
         return http.Response.WriteAsJsonAsync(error with { CorrelationId = correlation }, json, contentType: "application/problem+json");
     }
 
-    /// <summary>MVC model binding (malformed JSON, wrong types, unknown enum values): the same 422 body.</summary>
+    /// <summary>MVC model binding of parsable input (wrong types, unknown enum values, missing body): the same 422 body. Unparsable JSON is a 400 (<see cref="MalformedJsonFilter"/>).</summary>
     public static IActionResult InvalidModelState(ActionContext context)
     {
         var violations = context.ModelState
             .Where(e => e.Value is { Errors.Count: > 0 })
             .SelectMany(e => e.Value!.Errors.Select(err => new RuleViolation(
-                "REQUEST_MALFORMED",
+                "REQUEST_VALUE_INVALID",
                 string.IsNullOrWhiteSpace(err.ErrorMessage) ? "The value is not valid." : err.ErrorMessage,
                 FieldName(e.Key))))
             .ToList();
-        return new ApiErrorResult(Validation(violations.Count > 0 ? violations : [new RuleViolation("REQUEST_MALFORMED", "The request body is not valid.")]));
+        return new ApiErrorResult(Validation(violations.Count > 0 ? violations : [new RuleViolation("REQUEST_VALUE_INVALID", "The request body is not valid.")]));
     }
 
     // "$.lossDate" (System.Text.Json path) or "body.LossDate" become "LossDate", like the FluentValidation keys.
