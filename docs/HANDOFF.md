@@ -1,6 +1,6 @@
 # Handoff: Claims Module (DICEUS assessment)
 
-_Written 2026-11-24 at the end of P5, before compacting the session. It is for continuing without the chat history. The detailed record is in [PLAN.md](PLAN.md) (phases and tasks), [DECISIONS.md](DECISIONS.md) (D-00…D-72) and [ai-log.md](ai-log.md) (every session, run ID, mistake and correction). If this file and those disagree, they win; fix this file._
+_Written 2026-11-24 at the end of P5, before compacting the session. It is for continuing without the chat history. The detailed record is in [PLAN.md](PLAN.md) (phases and tasks), [DECISIONS.md](DECISIONS.md) (D-00…D-73) and [ai-log.md](ai-log.md) (every session, run ID, mistake and correction). If this file and those disagree, they win; fix this file._
 
 ## 1. Where things stand
 
@@ -15,6 +15,8 @@ _Written 2026-11-24 at the end of P5, before compacting the session. It is for c
 | P5 API | done, **accepted 2026-11-24** | `p5-api` = `main` (`a3a7237`) | CI 45308154094; deploy 45308552280, smoke 13/13; `.http` flow 25/25 on Azure |
 | **P6a Minimal demo-flow UI** | **next, not started** | (new branch `p6a-demo-ui`) | |
 | P8 Docs & demo, P7 local extras, P6b polish, Stretch | not started | | order: P6a → P8 → P7 → P6b → Stretch |
+
+**Before submission (D-73):** rotate the four demo passwords to readable ones for the reviewers. Write new Key Vault secret versions, disable the old versions (as in P4), and never print the values. Hand them over with the submission, never commit them. This is an Azure write, so it needs the user's approval.
 
 Tests at `a3a7237`: domain 318, application 44, integration 326, Angular 13. Build 0 warnings, 0 errors (TreatWarningsAsErrors is on).
 
@@ -37,7 +39,7 @@ Goal: the brief §7.2 live demo in the browser: FNOL → reserve → approval �
      - loading: a spinner or skeleton for every async call (B3.7.4);
      - idempotency: an `Idempotency-Key` (a GUID per submit, reused on retry) on writes. The server accepts 1–200 visible ASCII characters.
    - *Verify:* interceptor unit tests; switching roles changes the header.
-   - How the demo passwords reach the UI is a **user decision** (a sign-in form, or prefilled locally). Ask; don't commit any password.
+   - **Sign-in (D-73, the user's decision):** only through a **sign-in form**, a user picker (from `/api/auth/users`) plus a password field. **No password in frontend code or config.** The role switcher signs in again as the chosen user. Issued tokens live **in memory for the tab only** (a service or signal), never in localStorage or sessionStorage, so a reload starts signed out. Tokens already issued in the tab may be reused until they expire. Tests use mocked HTTP, never real passwords.
 3. **Task 37, shared components:** status badge (7 colours), money pipe, authority indicator (auto ≤ 10,000; supervisor ≤ 100,000; manager above, BR-R-02..04), confirm dialog. *Verify:* component tests at the 10,000 and 100,000 boundaries.
 4. **Task 38, claims list:** 7-column table, paginator, status filter, row navigation, "Log New Claim". API: `GET /api/claims?status=&dateFrom=&dateTo=&assignedHandlerId=&assignedHandler=&causeOfLossCode=&policyId=&search=&sortBy=&descending=&page=&pageSize=` returns `{items, page, pageSize, totalCount}`.
 5. **Task 39, FNOL form:** a 3-step reactive form.
