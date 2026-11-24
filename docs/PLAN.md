@@ -1,6 +1,6 @@
 # Claims Module (FNOL + Reserve Management): Plan
 
-_Status: approved plan, revision 4 (2026-11-22). Implementation: P0–P5 done and reviewed (P5 accepted 2026-11-24); P6a done and accepted (2026-11-24); next: P8 (see the status line under each phase; details and run IDs in ai-log.md)._
+_Status: approved plan, revision 4 (2026-11-22). Implementation: P0–P5 done and reviewed (P5 accepted 2026-11-24); P6a done and accepted (2026-11-24); P8 done, awaiting your review; then P7, and P6b with task 48a must-have (see the status line under each phase; details and run IDs in ai-log.md)._
 _Related: [DECISIONS.md](DECISIONS.md) (D-01…D-75), [ai-log.md](ai-log.md)._
 _Section numbering follows the approved plan: §7 (ambiguities and contradictions) is in DECISIONS.md, and §9 (AI log) is in ai-log.md._
 
@@ -387,6 +387,8 @@ Each task ends with a **Verify** check. Commit after each task (git init in P0).
 43. README: prerequisites, local setup, config keys, migrations, Azure, walkthrough, test credentials, how to reach the Hangfire dashboard.
 44. ARCHITECTURE.md (structure diagram, data model, CQRS flow, events, jobs, Azure, tradeoffs, linked to DECISIONS). AI-WORKFLOW.md built from ai-log.
 45. Final check: run the brief §7.2 demo script on Azure, run `dotnet test` and `ng test`, and confirm Swagger schemas.
+
+*Status 2026-11-24: **P8 tasks 43–45 done; awaiting your review*** (branch `p8-docs`). `README.md`, `ARCHITECTURE.md` and `AI-WORKFLOW.md` at the repository root (AI-WORKFLOW is in your voice, for you to edit). Task 45 (read-only against Azure `+37b496f`): smoke 15 of 15; Swagger 33 paths / 36 operations, all writes document Idempotency-Key, enums as names. Finding: generic paged results have unreadable Swagger schema ids (a code fix, proposed). The §7.2 browser flow was last run green at the same deployed build (P6a acceptance). Open: the conversation export (§4.6) comes from you.
 
 **P6b – Frontend completeness and polish** (after P8). **Not optional** (your P6a note, 2026-11-24): S11.3 requires five tabs, so the **Overview and Parties tabs (task 48a) are must-have before submission**; the rest of P6b is polish.
 46. Dashboard: full filter bar (date range, handler text, cause), total count, page size selector, empty state.

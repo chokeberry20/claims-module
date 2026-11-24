@@ -14,13 +14,15 @@ _Written 2026-11-24 at the end of P5, before compacting the session. It is for c
 | P4 Infrastructure | done, reviewed | `p4-infrastructure` (`921601d`) | deploy 45267640714, smoke 9/9, 7/7 Key Vault refs |
 | P5 API | done, **accepted 2026-11-24** | `p5-api` = `main` (`a3a7237`) | CI 45308154094; deploy 45308552280, smoke 13/13; `.http` flow 25/25 on Azure |
 | P6a Minimal demo-flow UI | done, **accepted 2026-11-24** | `p6a-demo-ui` = `main` | Angular tests 99; deploy 45380084863, smoke 15/15 at `+37b496f`; sign-in probe 12/12; §7.2 browser flow on Azure, no console errors |
-| P8 Docs & demo, P7 local extras, P6b, Stretch | not started | | order: P6a → P8 → P7 → P6b → Stretch. **P6b task 48a (Overview and Parties tabs, S11.3 five tabs) is must-have before submission** (your note, 2026-11-24) |
+| P8 Docs & demo | **done, awaiting review** | `p8-docs` | README, ARCHITECTURE, AI-WORKFLOW at the repo root |
+| P7 local extras, P6b, Stretch | not started | | order: P7 → P6b → Stretch. **P6b task 48a (Overview and Parties tabs, S11.3 five tabs) is must-have before submission** (your note, 2026-11-24) |
 
 **Before submission (D-73):** rotate the four demo passwords to readable ones for the reviewers. Write new Key Vault secret versions, disable the old versions (as in P4), and never print the values. Hand them over with the submission, never commit them. This is an Azure write, so it needs the user's approval.
 
 Tests at `a3a7237`: domain 318, application 44, integration 326, Angular 13. At `37b496f` (P6a accepted): the same backend counts, Angular 99. Build 0 warnings, 0 errors (TreatWarningsAsErrors is on).
 
 Open items carried forward:
+- **From P8 (2026-11-24):** the conversation export for brief §4.6 must come from the user (Claude Code `/export`); Swagger shows generic paged results with unreadable schema ids (a small `SwaggerSetup` fix, needs a deploy); AI-WORKFLOW.md is drafted in the user's voice for them to edit.
 - **The test-run hang is unexplained** (ai-log P5). Two telemetry-enabled test hosts in one process sometimes hung. The workaround: a single telemetry host test, with a 120 s timeout. The user's decision: don't install `dotnet-stack` unless the hang comes back (installing it was denied once by the permission check).
 - **A demo claim exists in Azure:** `CLM-2026-0000001`, created by the 35a `.http` run.
 - The Live Metrics service is called from Azure (intended), never from tests (`Telemetry:EnableLiveMetrics=false` in the test factory).

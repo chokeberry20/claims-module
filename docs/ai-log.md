@@ -625,3 +625,35 @@ Every commit went through the same gate, run right before it: `dotnet build` (0 
 - **Full §7.2 browser flow on Azure, once:** every step passed, no console errors or warnings, no 5xx. Claim `CLM-2026-0000004`, GL posting Posted after 0.2 s, download from Blob storage with a SAS signature, the four audit events present, close with a justification, Reopen disabled for handler1, supervisor1 reopened the claim to Open.
 - Azure demo claims now: `CLM-2026-0000001` … `-0000004`.
 - All green, so per your instruction `main` was fast-forwarded to `p6a-demo-ui` and pushed: **P6a accepted.**
+
+## Session 3 (continued): 2026-11-24: P8 documentation
+
+**Your instruction:** "If all green: fast-forward main to p6a-demo-ui and push main — that counts as my P6a acceptance. Then continue with P8 (docs), per the priority order. Same rules, stop after P8 for my review." Branch `p8-docs` from `main` (`199e2e9`).
+
+- **Task 43, `README.md`** (repo root), following brief §4.2–4.3:
+  - prerequisites;
+  - local setup (database, migrations or the idempotent SQL script, user secrets, API, frontend, tests, the `.http` flow);
+  - every configuration key with an example, secrets marked;
+  - the Azure resources, both pipelines and how to reproduce the deployment;
+  - the application walkthrough in the §7.2 order;
+  - the deployed URLs;
+  - the test accounts **without passwords** (D-73: handed over with the submission).
+- **Task 44, `ARCHITECTURE.md`** (brief §4.4): the solution structure with a dependency diagram, the data model (ER diagram and table), the CQRS flow (sequence diagram and pipeline order), every domain event with its before-commit audit entry and after-commit effect, the Hangfire job design and how GL posting idempotency is ensured, the Azure architecture, and the key decisions and tradeoffs linked to D-numbers.
+- **Task 44, `AI-WORKFLOW.md`** (brief §4.5): tools, workflow structure, 5 representative prompts, what was AI-generated and what was yours, 6 detailed AI mistakes with corrections plus smaller ones, an honest assessment, and the interaction history. **It is written in your voice ("I") from what ai-log records, for you to review and edit.**
+- **Facts checked against the code before writing, and corrected where my first draft was wrong** (AI mistakes, caught before commit):
+  - README said 10 cause-of-loss codes: the seed has 10 active plus one inactive.
+  - README said Node 22+: Angular 22 requires `^22.22.3 || ^24.15.0 || >=26`.
+  - ARCHITECTURE cited D-50 for "Infrastructure never references Persistence": D-50 is about the aggregate re-check; the citation was replaced by PLAN §4.
+  - The audit-log DENY was cited as D-57: it is D-62.
+  - ARCHITECTURE said the app's database role has "no DDL": it has DDL inside Hangfire's own schema (Hangfire installs its tables). Both README and ARCHITECTURE now say so precisely.
+  - The GL idempotency description follows the code (reload, check Posted, row version on the component), not the plan's original "conditional UPDATE" idea.
+  - The counts (37 commands and queries, 14 entity configurations, 688 backend tests) were counted, not estimated.
+- **Task 45, final check (read-only against Azure, deployed `+37b496f`):**
+  - Smoke 15 of 15.
+  - Swagger: 33 paths and 36 operations, all with a 2xx response; every write documents `Idempotency-Key`; enums as names; request contracts as designed (`component`, `rejectionReason`); Bearer required on everything except `/health/live` (anonymous by design).
+  - **Finding:** the generic paged results appear as `Application.Claims.PagedResult\`1[[… Version=1.0.0.0, Culture=neutral …]]` schema ids. Cosmetic, but visible to reviewers. A code fix (a custom schema id for generics) needs a deploy, so it is proposed rather than slipped into the docs phase.
+  - The §7.2 browser flow was last run on Azure at `+37b496f` (P6a acceptance, all green), which is still the deployed build; nothing deployable changed in P8. `dotnet test` and `ng test` ran in the commit gate.
+- **Open items for you:**
+  - The conversation export for brief §4.6. The Claude Code transcripts are on your machine; `/export` in Claude Code writes the current conversation to a file. AI-WORKFLOW §7 says it is provided with the submission.
+  - The password rotation before submission (D-73).
+  - P6b task 48a (Overview and Parties tabs) is still must-have.
