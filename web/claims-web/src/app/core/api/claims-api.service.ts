@@ -152,6 +152,21 @@ export class ClaimsApiService {
     return this.http.post<ReserveTransactionState>(`${this.base}/api/claims/${claimId}/reserves/${transactionId}/retract`, {});
   }
 
+  /** Re-enqueues a Failed GL posting with the same idempotency key (supervisor+, D-28). */
+  retryPosting(claimId: string, transactionId: string): Observable<ReserveTransactionState> {
+    return this.http.post<ReserveTransactionState>(
+      `${this.base}/api/claims/${claimId}/reserves/${transactionId}/retry-posting`,
+      {},
+    );
+  }
+
+  /** Waives an open Critical validation issue with a reason (supervisor+, D-07; NO_CLAIMANT can't be waived). */
+  waiveIssue(claimId: string, issueId: string, reason: string): Observable<ClaimChangeResult> {
+    return this.http.post<ClaimChangeResult>(`${this.base}/api/claims/${claimId}/validation-issues/${issueId}/waive`, {
+      reason,
+    });
+  }
+
   // ------------------------------------------------------------ documents
 
   documents(claimId: string): Observable<ClaimDocument[]> {

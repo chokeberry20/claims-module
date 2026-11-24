@@ -1,5 +1,5 @@
 import { TransitionOption, TransitionStatusRequest } from '../../core/api/models';
-import { ConfirmDialogData } from '../../shared/confirm-dialog';
+import { ChecklistItem, ConfirmDialogData } from '../../shared/confirm-dialog';
 import { labelOf } from '../../shared/status-badge';
 
 /**
@@ -22,16 +22,21 @@ export function planTransition(option: TransitionOption): TransitionPlan {
   const acknowledge = fields.has('AcknowledgeWarnings');
   const justification = fields.has('ClosureJustification');
   const reason = option.requiresReason || fields.has('Reason');
-  const items = option.confirmationsRequired.map((c) => c.message);
+  const closing = target === 'Closed';
+  // For Closed, the checklist shows the CC-04 confirmation; elsewhere the confirmations are listed as items.
+  const items = closing ? [] : option.confirmationsRequired.map((c) => c.message);
 
   const dialog: ConfirmDialogData = {
-    title: `Move the claim to ${labelOf(target)}?`,
-    message:
-      target === 'Closed'
-        ? 'Close checklist: no pending reserve approvals, no open Critical issues and an active Claimant are satisfied.'
-        : target === 'Reopened'
-          ? 'The claim is reopened and goes straight back to Open (BR-ST-04).'
-          : undefined,
+    title: closing ? 'Close checklist' : `Move the claim to ${labelOf(target)}?`,
+    message: closing
+      ? option.isAllowed
+        ? 'All closure conditions are met.'
+        : 'The claim can’t be closed until the failing items are resolved.'
+      : target === 'Reopened'
+        ? 'The claim is reopened and goes straight back to Open (BR-ST-04).'
+        : undefined,
+    checklist: closing ? closeChecklist(option) : undefined,
+    confirmDisabled: !option.isAllowed,
     items: items.length ? items : undefined,
     confirmLabel: acknowledge ? `Acknowledge and move to ${labelOf(target)}` : `Move to ${labelOf(target)}`,
     destructive: target === 'Withdrawn',
@@ -51,6 +56,36 @@ export function planTransition(option: TransitionOption): TransitionPlan {
       acknowledgeWarnings: acknowledge,
     }),
   };
+}
+
+/** The S4.3 closure conditions, in order, with the server's state for each (from GET /transitions, D-27). */
+const CLOSE_CONDITIONS = [
+  { code: 'CC-01', label: 'No reserve changes awaiting approval' },
+  { code: 'CC-02', label: 'No open Critical validation issues' },
+  { code: 'CC-03', label: 'At least one active Claimant' },
+  { code: 'CC-04', label: 'Open reserve balances confirmed with a justification' },
+] as const;
+
+/**
+ * The close pre-flight checklist (S11.3): every condition, passed or not. The server reports only what is
+ * unmet (blocking: CC-01..03; to confirm: CC-04), so an absent code means the condition is satisfied.
+ */
+export function closeChecklist(option: TransitionOption): ChecklistItem[] {
+  return CLOSE_CONDITIONS.map(({ code, label }) => {
+    const blocking = option.blockingConditions.find((b) => b.code === code);
+    const confirm = option.confirmationsRequired.find((c) => c.code === code);
+    if (blocking) return { label: `${code}: ${label}`, state: 'blocked' as const, detail: blocking.message };
+    if (confirm) return { label: `${code}: ${label}`, state: 'confirm' as const, detail: 'Enter the justification below.' };
+    return { label: `${code}: ${label}`, state: 'ok' as const };
+  });
+}
+
+/**
+ * Whether the menu item opens a dialog. Allowed transitions do; Closed also opens when it is blocked only by
+ * its conditions, to show the checklist (S11.3). Missing role or other blocked transitions stay disabled.
+ */
+export function canOpen(option: TransitionOption): boolean {
+  return option.isAllowed || (option.targetStatus === 'Closed' && option.hasRequiredRole);
 }
 
 /** Why an option can't be chosen now, for the menu tooltip (role first, then the blocking conditions). */

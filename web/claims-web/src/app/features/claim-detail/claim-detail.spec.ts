@@ -13,7 +13,7 @@ import { auditTone } from './audit-tab';
 import { ClaimDetail } from './claim-detail';
 import { uploadProblem } from './documents-tab';
 import { awaitingPosting, ReservesTab, reserveDelta, transactionTypesFor } from './reserves-tab';
-import { blockedReason, planTransition } from './transition-plan';
+import { blockedReason, canOpen, closeChecklist, planTransition } from './transition-plan';
 
 const API = 'https://api.test';
 
@@ -227,6 +227,115 @@ describe('ReservesTab role gating (S3, S11.3)', () => {
   it('shows the GL posting badge only for approved changes', async () => {
     const el = await render('Handler', 'u-h1', [txn({ approvalStatus: 'AutoApproved', postingStatus: 'Posted' })]);
     expect(el.querySelector('[data-testid="posting-t-1"] .badge')?.textContent).toBe('Posted');
+  });
+
+  it('offers Retry on a Failed posting to a supervisor only (D-28), and re-queues it', async () => {
+    const failed = txn({ approvalStatus: 'Approved', postingStatus: 'Failed', postingFailureReason: 'GL unavailable' });
+    const asHandler = await render('Handler', 'u-h1', [failed]);
+    expect(buttons(asHandler, 'retry-posting')).toHaveLength(0);
+    http.verify();
+    TestBed.resetTestingModule();
+
+    const el = await render('Supervisor', 'u-s1', [failed]);
+    const changed = vi.fn();
+    fixture.componentInstance.changed.subscribe(changed);
+    buttons(el, 'retry-posting')[0].click();
+    const req = http.expectOne(`${API}/api/claims/c-1/reserves/t-1/retry-posting`);
+    expect(req.request.method).toBe('POST');
+    req.flush({ reserveComponentId: 'rc-1', transactionId: 't-1', approvalStatus: 'Approved', postingStatus: 'Pending', componentBalance: 50_000 });
+    expect(changed).toHaveBeenCalledOnce();
+  });
+});
+
+describe('close pre-flight checklist (S11.3, S4.3)', () => {
+  const close = (overrides: Partial<TransitionOption>) => option({ targetStatus: 'Closed', ...overrides });
+
+  it('lists CC-01..CC-04 with the server state of each', () => {
+    const items = closeChecklist(
+      close({
+        isAllowed: false,
+        blockingConditions: [{ code: 'CC-01', message: 'Pending approvals.', field: 'Reserves' }],
+        confirmationsRequired: [{ code: 'CC-04', message: 'Open balances remain.', field: 'ClosureJustification' }],
+      }),
+    );
+    expect(items.map((i) => [i.label.slice(0, 5), i.state])).toEqual([
+      ['CC-01', 'blocked'],
+      ['CC-02', 'ok'],
+      ['CC-03', 'ok'],
+      ['CC-04', 'confirm'],
+    ]);
+    expect(items[0].detail).toBe('Pending approvals.');
+  });
+
+  it('opens the checklist even when Close is blocked, but nothing else that is blocked', () => {
+    const blockedClose = close({ isAllowed: false, blockingConditions: [{ code: 'CC-02', message: 'x', field: 'ValidationIssues' }] });
+    expect(canOpen(blockedClose)).toBe(true);
+    expect(planTransition(blockedClose).dialog.confirmDisabled).toBe(true);
+    expect(canOpen(close({ isAllowed: false, hasRequiredRole: false }))).toBe(false);
+    expect(canOpen(option({ targetStatus: 'PendingPayment', isAllowed: false }))).toBe(false);
+
+    const ready = planTransition(close({}));
+    expect(ready.dialog.confirmDisabled).toBe(false);
+    expect(ready.dialog.checklist?.every((i) => i.state === 'ok')).toBe(true);
+  });
+});
+
+describe('ClaimDetail waive (D-07)', () => {
+  async function render(role: UserRole, confirm = vi.fn()) {
+    const session = signal({ userId: 'u-x', role });
+    await TestBed.configureTestingModule({
+      imports: [ClaimDetail],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: APP_CONFIG, useValue: { apiBaseUrl: API } },
+        { provide: ConfirmService, useValue: { confirm } },
+        { provide: NotificationService, useValue: { success: vi.fn(), info: vi.fn(), warning: vi.fn(), show: vi.fn() } },
+        {
+          provide: AuthService,
+          useValue: { session, hasRole: (min: UserRole) => hasRoleAtLeast(role, min), users: () => of([]), hasValidToken: () => false },
+        },
+      ],
+    }).compileComponents();
+    const http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(ClaimDetail);
+    fixture.componentRef.setInput('claimId', 'c-1');
+    await fixture.whenStable();
+    const issues = [
+      { issueId: 'i-1', code: 'COL_INACTIVE', severity: 'Critical' as const, message: 'Cause of loss is inactive.', field: null, status: 'Open' as const },
+      { issueId: 'i-2', code: 'NO_CLAIMANT', severity: 'Critical' as const, message: 'At least one Claimant is required.', field: null, status: 'Open' as const },
+      { issueId: 'i-3', code: 'NO_RISK_OBJECTS', severity: 'Warning' as const, message: 'No risk objects.', field: null, status: 'Open' as const },
+    ];
+    http.expectOne(`${API}/api/claims/c-1`).flush(claim({ validationIssues: issues }));
+    http.expectOne(`${API}/api/claims/c-1/transitions`).flush([]);
+    await fixture.whenStable();
+    http.match(() => true).forEach((r) => r.flush(r.request.url.endsWith('/reserves') ? { claimId: 'c-1', totals: claim().reserves, history: [] } : []));
+    await fixture.whenStable();
+    return { http, el: fixture.nativeElement as HTMLElement };
+  }
+
+  it('a supervisor can waive an open Critical issue, but not NO_CLAIMANT or a Warning', async () => {
+    const { el } = await render('Supervisor');
+    expect(el.querySelector('[data-testid="waive-COL_INACTIVE"]')).not.toBeNull();
+    expect(el.querySelector('[data-testid="waive-NO_CLAIMANT"]')).toBeNull();
+    expect(el.querySelector('[data-testid="waive-NO_RISK_OBJECTS"]')).toBeNull();
+  });
+
+  it('a handler gets no waive button', async () => {
+    const { el } = await render('Handler');
+    expect(el.querySelector('[data-testid^="waive-"]')).toBeNull();
+  });
+
+  it('posts the waiver with the reason from the dialog', async () => {
+    const confirm = vi.fn().mockReturnValue(of({ text: 'Legacy code accepted by underwriting' }));
+    const { http, el } = await render('Manager', confirm);
+    el.querySelector<HTMLButtonElement>('[data-testid="waive-COL_INACTIVE"]')!.click();
+    const req = http.expectOne(`${API}/api/claims/c-1/validation-issues/i-1/waive`);
+    expect(req.request.body).toEqual({ reason: 'Legacy code accepted by underwriting' });
+    req.flush({ claimId: 'c-1', status: 'Draft', validationIssues: [] });
+    http.expectOne(`${API}/api/claims/c-1`).flush(claim());
+    http.expectOne(`${API}/api/claims/c-1/transitions`).flush([]);
   });
 });
 

@@ -12,3 +12,4 @@ h1 { font: var(--mat-sys-headline-small); font-family: 'Roboto Mono', monospace;
 .issue[data-severity='Critical'] mat-icon { color: var(--mat-sys-error); }
 .issue[data-severity='Warning'] mat-icon { color: #a15c00; }
 .state { display: flex; justify-content: center; padding: 48px; }
+.waive { margin-left: 4px; }

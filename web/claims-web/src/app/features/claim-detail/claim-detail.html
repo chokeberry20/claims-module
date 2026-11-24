@@ -34,11 +34,11 @@
           <div [matTooltip]="blockedReason(t) ?? ''" matTooltipPosition="left">
             <button
               mat-menu-item
-              [disabled]="!t.isAllowed"
+              [disabled]="!canOpen(t)"
               (click)="startTransition(t)"
               [attr.data-testid]="'transition-' + t.targetStatus"
             >
-              <mat-icon>{{ t.isAllowed ? 'arrow_forward' : 'block' }}</mat-icon>
+              <mat-icon>{{ t.isAllowed ? 'arrow_forward' : canOpen(t) ? 'checklist' : 'block' }}</mat-icon>
               <span>{{ label(t.targetStatus) }}</span>
             </button>
           </div>
@@ -60,6 +60,9 @@
           <div class="issue" [attr.data-severity]="issue.severity">
             <mat-icon>{{ issue.severity === 'Critical' ? 'error' : 'warning' }}</mat-icon>
             <span>{{ issue.message }}</span>
+            @if (canWaive(issue)) {
+              <button mat-button class="waive" (click)="waive(issue)" [attr.data-testid]="'waive-' + issue.code">Waive</button>
+            }
           </div>
         }
       </div>

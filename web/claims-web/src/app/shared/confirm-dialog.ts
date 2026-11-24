@@ -23,6 +23,17 @@ export interface ConfirmDialogData {
   /** Asks for a reason or justification as part of confirming. */
   readonly input?: ConfirmTextInput;
   readonly destructive?: boolean;
+  /** A pass/fail checklist (the close pre-flight, S11.3). */
+  readonly checklist?: readonly ChecklistItem[];
+  /** Show the dialog for information only: the confirm button stays disabled (e.g. a failing checklist). */
+  readonly confirmDisabled?: boolean;
+}
+
+export interface ChecklistItem {
+  readonly label: string;
+  /** `ok` passed, `blocked` prevents the action, `confirm` needs something from the user in this dialog. */
+  readonly state: 'ok' | 'blocked' | 'confirm';
+  readonly detail?: string;
 }
 
 /** What the user confirmed: `text` is the trimmed input, when one was asked for. */
@@ -39,6 +50,21 @@ export interface ConfirmResult {
     <mat-dialog-content>
       @if (data.message) {
         <p>{{ data.message }}</p>
+      }
+      @if (data.checklist?.length) {
+        <ul class="checklist" data-testid="checklist">
+          @for (item of data.checklist; track $index) {
+            <li [attr.data-state]="item.state">
+              <span class="mark" aria-hidden="true">{{ item.state === 'ok' ? '✓' : item.state === 'blocked' ? '✗' : '!' }}</span>
+              <span>
+                {{ item.label }}
+                @if (item.detail) {
+                  <span class="detail">{{ item.detail }}</span>
+                }
+              </span>
+            </li>
+          }
+        </ul>
       }
       @if (data.items?.length) {
         <ul class="items">
@@ -72,7 +98,7 @@ export interface ConfirmResult {
       <button
         mat-flat-button
         [class.destructive]="data.destructive"
-        [disabled]="text.invalid"
+        [disabled]="text.invalid || data.confirmDisabled"
         (click)="confirm()"
         data-testid="confirm-ok"
       >
@@ -83,6 +109,13 @@ export interface ConfirmResult {
   styles: `
     .full { width: 100%; }
     .items { margin: 0 0 12px; padding-left: 20px; }
+    .checklist { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+    .checklist li { display: flex; gap: 8px; }
+    .mark { width: 18px; font-weight: 700; }
+    [data-state='ok'] .mark { color: #2e7d32; }
+    [data-state='blocked'] .mark { color: var(--mat-sys-error); }
+    [data-state='confirm'] .mark { color: #a15c00; }
+    .detail { display: block; font: var(--mat-sys-body-small); opacity: 0.8; }
     .destructive { --mat-button-filled-container-color: var(--mat-sys-error); }
   `,
 })
@@ -96,7 +129,7 @@ export class ConfirmDialog {
   }
 
   protected confirm(): void {
-    if (this.text.invalid) {
+    if (this.text.invalid || this.data.confirmDisabled) {
       return;
     }
     this.ref.close({ text: this.data.input ? this.text.value.trim() : null });

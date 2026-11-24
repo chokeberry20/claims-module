@@ -215,6 +215,11 @@ export class ReservesTab {
       .subscribe((ok) => ok && this.act(t, 'Retracted', this.api.retractReserve(this.claim().claimId, t.transactionId)));
   }
 
+  /** D-28: a supervisor re-queues a Failed posting; it keeps its idempotency key, so it can't post twice. */
+  protected retryPosting(t: ReserveTransaction): void {
+    this.act(t, 'GL posting re-queued', this.api.retryPosting(this.claim().claimId, t.transactionId));
+  }
+
   private act(t: ReserveTransaction, verb: string, call: Observable<unknown>): void {
     this.busy.set(t.transactionId);
     call.subscribe({

@@ -12,7 +12,7 @@ import { RouterLink } from '@angular/router';
 import { catchError, forkJoin, map, of } from 'rxjs';
 import { toApiError } from '../../core/api/api-error';
 import { ClaimsApiService } from '../../core/api/claims-api.service';
-import { ClaimDetail as ClaimDetailDto, DemoUser, TransitionOption } from '../../core/api/models';
+import { ClaimDetail as ClaimDetailDto, DemoUser, TransitionOption, ValidationIssue } from '../../core/api/models';
 import { AuthService } from '../../core/auth/auth.service';
 import { NotificationService } from '../../core/ui/notification.service';
 import { ConfirmService } from '../../shared/confirm-dialog';
@@ -23,7 +23,11 @@ import { DocumentsTab } from './documents-tab';
 import { OverviewTab } from './overview-tab';
 import { PartiesTab } from './parties-tab';
 import { ReservesTab } from './reserves-tab';
-import { blockedReason, planTransition } from './transition-plan';
+import { blockedReason, canOpen, planTransition } from './transition-plan';
+import { isEditable } from './overview-tab';
+
+/** BR-C-03 / BR-ST-02(b): a missing Claimant can't be waived, only fixed (D-07). */
+export const NON_WAIVABLE_CODE = 'NO_CLAIMANT';
 
 /**
  * Claim detail (S11.3): the header with the transition menu, and the five tabs: Overview, Parties,
@@ -70,6 +74,7 @@ export class ClaimDetail implements OnInit {
   protected readonly version = signal(0);
   protected readonly label = labelOf;
   protected readonly blockedReason = blockedReason;
+  protected readonly canOpen = canOpen;
 
   /** User id → display name, from the demo directory (the audit log and history carry ids). */
   protected readonly userNames = toSignal(
@@ -104,6 +109,39 @@ export class ClaimDetail implements OnInit {
 
   protected copied(): void {
     this.notifications.info(`Copied ${this.claim()?.claimNumber}`);
+  }
+
+  /** D-07: a supervisor or manager can waive an open Critical issue, except NO_CLAIMANT; a handler sees no button. */
+  protected canWaive(issue: ValidationIssue): boolean {
+    const claim = this.claim();
+    return (
+      !!claim &&
+      isEditable(claim) &&
+      this.auth.hasRole('Supervisor') &&
+      issue.severity === 'Critical' &&
+      issue.status === 'Open' &&
+      issue.code !== NON_WAIVABLE_CODE
+    );
+  }
+
+  protected waive(issue: ValidationIssue): void {
+    this.confirm
+      .confirm({
+        title: 'Waive this Critical issue?',
+        message: issue.message,
+        input: { label: 'Reason for the waiver', required: true, maxLength: 500 },
+        confirmLabel: 'Waive',
+      })
+      .subscribe((result) => {
+        if (!result?.text) return;
+        this.api.waiveIssue(this.claimId(), issue.issueId, result.text).subscribe({
+          next: () => {
+            this.notifications.success('Issue waived.');
+            this.load();
+          },
+          error: () => this.load(),
+        });
+      });
   }
 
   protected startTransition(option: TransitionOption): void {
