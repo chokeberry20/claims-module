@@ -13,19 +13,21 @@ _Written 2026-11-24 at the end of P5, before compacting the session. It is for c
 | P3 Application | done, reviewed | `p3-application` | deploy 45233506838, smoke 7/7 |
 | P4 Infrastructure | done, reviewed | `p4-infrastructure` (`921601d`) | deploy 45267640714, smoke 9/9, 7/7 Key Vault refs |
 | P5 API | done, **accepted 2026-11-24** | `p5-api` = `main` (`a3a7237`) | CI 45308154094; deploy 45308552280, smoke 13/13; `.http` flow 25/25 on Azure |
-| **P6a Minimal demo-flow UI** | **next, not started** | (new branch `p6a-demo-ui`) | |
+| **P6a Minimal demo-flow UI** | **tasks 36–40 done; 40a (deploy) awaits approval** | `p6a-demo-ui` (`2766488` + docs) | Angular tests 95; local §7.2 flow in headless Chrome, no console errors |
 | P8 Docs & demo, P7 local extras, P6b polish, Stretch | not started | | order: P6a → P8 → P7 → P6b → Stretch |
 
 **Before submission (D-73):** rotate the four demo passwords to readable ones for the reviewers. Write new Key Vault secret versions, disable the old versions (as in P4), and never print the values. Hand them over with the submission, never commit them. This is an Azure write, so it needs the user's approval.
 
-Tests at `a3a7237`: domain 318, application 44, integration 326, Angular 13. Build 0 warnings, 0 errors (TreatWarningsAsErrors is on).
+Tests at `a3a7237`: domain 318, application 44, integration 326, Angular 13. At `2766488` (P6a): the same backend counts, Angular 95. Build 0 warnings, 0 errors (TreatWarningsAsErrors is on).
 
 Open items carried forward:
 - **The test-run hang is unexplained** (ai-log P5). Two telemetry-enabled test hosts in one process sometimes hung. The workaround: a single telemetry host test, with a 120 s timeout. The user's decision: don't install `dotnet-stack` unless the hang comes back (installing it was denied once by the permission check).
 - **A demo claim exists in Azure:** `CLM-2026-0000001`, created by the 35a `.http` run.
 - The Live Metrics service is called from Azure (intended), never from tests (`Telemetry:EnableLiveMetrics=false` in the test factory).
 
-## 2. Next: P6a (minimal demo-flow UI)
+## 2. P6a (minimal demo-flow UI)
+
+**State (2026-11-24):** tasks 36–40 are done on `p6a-demo-ui` (see PLAN.md status line, ai-log Session 3, D-74). **Next: 40a**, which needs the user's approval: push the branch, CI, `deploy.yml` with `deploy_infra=false` (no Bicep change), then the §7.2 browser flow against the Azure URLs. The browser check lives in the session scratchpad (`e2e/`: `run-local.sh`, `lib.mjs`, `fnol.mjs`, `demo.mjs`, using `playwright-core` and the installed Chrome) and is lost with the session; it takes `WEB_URL` and the password from `CLAIMS_PW` (Azure: one password per user, so it needs per-user variables read from Key Vault in the same command). The original task list follows.
 
 Goal: the brief §7.2 live demo in the browser: FNOL → reserve → approval → upload → audit. Tasks come from PLAN.md P6a. Read that section before starting.
 

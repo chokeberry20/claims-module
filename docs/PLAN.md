@@ -1,7 +1,7 @@
 # Claims Module (FNOL + Reserve Management): Plan
 
-_Status: approved plan, revision 4 (2026-11-22). Implementation: P0–P5 done and reviewed (P5 accepted 2026-11-24); next: P6a (see the status line under each phase; details and run IDs in ai-log.md)._
-_Related: [DECISIONS.md](DECISIONS.md) (D-01…D-73), [ai-log.md](ai-log.md)._
+_Status: approved plan, revision 4 (2026-11-22). Implementation: P0–P5 done and reviewed (P5 accepted 2026-11-24); P6a tasks 36–40 done, 40a (deploy) awaiting approval (see the status line under each phase; details and run IDs in ai-log.md)._
+_Related: [DECISIONS.md](DECISIONS.md) (D-01…D-74), [ai-log.md](ai-log.md)._
 _Section numbering follows the approved plan: §7 (ambiguities and contradictions) is in DECISIONS.md, and §9 (AI log) is in ai-log.md._
 
 `files/` has two documents:
@@ -376,6 +376,8 @@ Each task ends with a **Verify** check. Commit after each task (git init in P0).
     - **Audit Log:** paginated.
     *Verify:* the full demo script with role switching works locally.
 40a. Deploy & smoke. Run the full brief §7.2 demo script on the **Azure** URLs and confirm the browser console has no errors.
+
+*Status 2026-11-24: **P6a tasks 36–40 done; 40a (deploy) waits for your approval*** (branch `p6a-demo-ui`, commits `391fa4c`, `bc51049`, `2e5cd9b`, `b82713e`, `2766488`). Angular tests 13 → 95; backend unchanged (318 + 44 + 326). Sign-in follows your D-73; the AI's frontend choices are D-74. Each task was also checked in headless Chrome against the local API; the full §7.2 flow with role switching passed with no console errors or warnings. Two bugs were found that way and fixed before commit (a dev-mode warning from the role switch, and the reserve panel sending Adjust for a new component). The smoke test gained a deep-link and a write-preflight check (14 of 14 locally).
 
 **P7 – Local DevOps extras** (most of the Azure and CI/CD work moved to P2.5)
 41. **[Optional]** Dockerfiles and `docker-compose.yml` (SQL 2022, API, web), checked only by a CI job (`docker compose build` plus a health check), since Docker isn't used locally (D-42). Drop this if time is short.

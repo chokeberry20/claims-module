@@ -147,6 +147,14 @@ if [ -n "$web" ]; then
     fail "app-config.json returned $status: $(head -c 200 "$body_file")"
   fi
 
+  # P6a: a deep link (bookmark, reload on a claim page) is answered with the SPA, not a 404.
+  status=$(fetch "$web/claims/00000000-0000-0000-0000-000000000000")
+  if [ "$status" = 200 ] && grep -q '<app-root' "$body_file"; then
+    pass "deep link /claims/{id} served by the SPA fallback"
+  else
+    fail "deep link /claims/{id} returned $status"
+  fi
+
   # The browser calls the API cross-origin: the API must allow the frontend's origin.
   headers=$(curl -sS -o /dev/null -D - --max-time 30 -X OPTIONS "$api/health" \
     -H "Origin: $web" -H 'Access-Control-Request-Method: GET' || true)
@@ -154,6 +162,17 @@ if [ -n "$web" ]; then
     pass "CORS preflight allows $web"
   else
     fail "CORS preflight does not allow $web"
+  fi
+
+  # P6a: UI writes carry a bearer token and an Idempotency-Key; the preflight must allow both.
+  headers=$(curl -sS -o /dev/null -D - --max-time 30 -X OPTIONS "$api/api/claims" \
+    -H "Origin: $web" -H 'Access-Control-Request-Method: POST' \
+    -H 'Access-Control-Request-Headers: authorization,content-type,idempotency-key' || true)
+  if printf '%s' "$headers" | tr -d '\r' | grep -qi "^access-control-allow-origin: $web$" \
+    && printf '%s' "$headers" | tr -d '\r' | grep -qi '^access-control-allow-headers:.*idempotency-key'; then
+    pass "CORS preflight allows writes with Authorization and Idempotency-Key"
+  else
+    fail "CORS preflight for writes with Authorization and Idempotency-Key not allowed"
   fi
 fi
 
