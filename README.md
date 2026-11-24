@@ -54,6 +54,23 @@ In the UI you sign in by picking a user and typing the password. The role switch
 
 Docker is **not** required. The integration tests use a real SQL Server database (a local one, or a SQL Server 2022 service container in CI).
 
+### Why there is no docker-compose
+
+The brief lists a `docker-compose.yml` as optional. This repository doesn't have one. **Docker isn't available on the development machine**, so a compose file could never have been run or tested there. Shipping an unverified one would be worse than none. Instead, the local setup uses a SQL Server instance and the local file storage provider ([D-42](docs/DECISIONS.md)).
+
+Everything a compose file would exercise is verified on every push by **CI** (`.github/workflows/ci.yml`):
+
+| Check | How |
+|---|---|
+| Build | `dotnet build` in Release with warnings as errors |
+| Migrations against a real database | A **SQL Server 2022 container** (GitHub Actions service), migrated by the integration tests |
+| All .NET tests | Domain, Application, and the integration tests (API host, real Hangfire server, end-to-end HTTP scenario) on that container |
+| Model and migrations in sync | `dotnet ef migrations has-pending-model-changes` |
+| Frontend | `ng build` and `ng test` |
+| Infrastructure | Bicep build and lint |
+
+The deploy pipeline then runs the same artefacts on Azure, followed by the smoke test.
+
 ## Local development
 
 ### 1. Database

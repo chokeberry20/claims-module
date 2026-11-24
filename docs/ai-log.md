@@ -750,3 +750,22 @@ Every commit went through the full gate (0 warnings; .NET 44 + 318 + 327 at the 
   - grant the reviewers repository access;
   - provide the conversation export (§4.6);
   - optionally P7 (docker-compose).
+
+### Demo password rotation (D-73) and P7 decision (2026-11-24)
+
+**Your approval:** "Rotation approved, with one change first: write the handover file immediately after generating the passwords (before any Key Vault write), so a failure mid-script can't leave the new values lost and the old ones disabled. Then run it and report the per-user OK/FAILED lines only." And: "P7: skip docker-compose. Make sure README explains why (no Docker on the dev machine, D-42) and that CI verifies everything else."
+
+- **Your change applied first:** the handover file is now written immediately after generating the passwords, and checked to be complete, before any Key Vault call. The script parses with 0 errors.
+- **Run results (per user):**
+
+  | User | Sign-in with the new password |
+  |---|---|
+  | handler1 | OK |
+  | handler2 | OK |
+  | supervisor1 | OK |
+  | manager1 | OK |
+
+- **Key Vault, checked read-only afterwards:** every `DemoUserPassword-*` secret has exactly **1 enabled version of 3** (the P4 zero version, the P4 version just disabled, the new one). The handover file `%USERPROFILE%\claims-demo-credentials.txt` exists, with 6 lines. No password value appeared in any command text or output.
+- **AI mistake in the script:** its final "enabled versions" count used `--query 'length([?attributes.enabled])'`. `az.cmd` is a batch file, so `cmd` mis-parsed the parentheses ("-o was unexpected at this time"), and the count wasn't printed. The echoed command line held only the vault and secret names. The count was verified separately with a query without parentheses (above). The rotation itself was not affected.
+- **Smoke test after the rotation:** 15 of 15 at `+d951525`, including the dashboard's Basic-auth challenge (`SMOKE_EXPECT_DASHBOARD_AUTH=1`, which the pipeline sets).
+- **P7:** task 41 (docker-compose) skipped, your decision. README gained "Why there is no docker-compose": Docker isn't available on the development machine (D-42), so an unverified compose file isn't shipped. It also lists what CI verifies instead (Release build with warnings as errors, migrations and all tests on a SQL Server 2022 container, the model-snapshot check, the Angular build and tests, Bicep lint). CI's build mode and the fixture's EnsureDeleted/Migrate were checked against the files.
