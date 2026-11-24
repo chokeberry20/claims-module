@@ -524,3 +524,28 @@ Branch `p4-infrastructure` (from `main` = `c163a53`). Build + all tests right be
 - **35a is waiting for your approval:** push `p5-api`, CI, a deploy with `deploy_infra=true` (the new `ASPNETCORE_FORWARDEDHEADERS_ENABLED` app setting), then `run-http.ps1` against the Azure URL, with the handler1 and supervisor1 passwords read from Key Vault into environment variables and never printed.
 
 **Your P5 review (2026-11-24):** accepted the MediatR-only role checks (D-72) and the 401 fallback, and the test-hang workaround; don't install dotnet-stack unless the hang returns. **One correction:** syntactically malformed JSON must be **400**, not 422; type and enum mismatches and validation stay 422. Implemented with a resource filter that parses the buffered JSON body before model binding (reliable, unlike matching error-message text). Tests: four unparsable bodies (garbage, an unterminated string, a trailing comma, a truncated array) give 400 `MalformedRequest`; a wrong type, an unknown enum name, an empty body and a bad query enum give 422 per field.
+
+**P5 task 35a (deploy & smoke), 2026-11-24. Your approval: push `p5-api`, CI, deploy with `deploy_infra=true`, `run-http.ps1` against Azure (secrets via environment variables, never printed).**
+- **CI run 45306461300 (`f975c12`): green.** 318 + 44 + 326 tests on SQL Server 2022; the Angular and Bicep jobs were green too.
+- **Deploy run 45306958443: failed in "Apply EF Core migrations". It was a runner problem, not the code.**
+  - The bundle's `Authentication=Active Directory Default` uses `DefaultAzureCredential`, which tries managed identity first. On this GitHub runner the metadata address 169.254.169.254 answered **401** (`Server: EC2ws`: the runner's host was on AWS). The chain stopped there instead of moving on to the Azure CLI credential from `az login`. Earlier runners had no metadata endpoint, so the chain moved on to the CLI credential.
+  - The Bicep step had already run. App Service still served the previous build, since the API deploy step comes later.
+  - **Fix (`f42f826`):**
+    - the bundle runs with `AZURE_TOKEN_CREDENTIALS=dev` (developer credentials only);
+    - Persistence now references Azure.Identity **1.21.0** (the central pin). The bundle had resolved **1.12.1** transitively, which predates that setting;
+    - go-sqlcmd uses `ActiveDirectoryAzCli`.
+  - CI run 45308154094 green (`f42f826`).
+- **Deploy run 45308552280 (`f42f826`, `deploy_infra=true`): green.**
+  - Migrations: the bundle authenticated; "No migrations were applied", since P5 has no schema change. The grant script ran with the Azure CLI credential.
+  - **Smoke test 13 of 13** after `/health/live` reported `+f42f826`. That includes the new P5 checks: anonymous `/api/claims` gives 401 Bearer with the S10.4 body, the correlation id is echoed, `/api/auth/users` lists the demo users without passwords, and Swagger has the P5 endpoints. The Key Vault reference check passed. `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` is set on App Service.
+- **`run-http.ps1` against Azure:** the handler1 and supervisor1 passwords were read from Key Vault into environment variables inside the same command and never printed; lengths only were checked.
+  - **All 25 requests returned the expected status.** Claim `CLM-2026-0000001` was created in the Azure database by the 422 check, the 403, the approval, upload, close and reopen.
+  - Follow-up check with a fresh handler1 token: the 50k Indemnity and 750 Expense postings are both **Posted** (Hangfire jobs 76 and 77), with 2 GL_POSTING_SIMULATED audit entries. The document link points to Blob storage with a SAS signature, and downloading it returned the uploaded text. Unparsable JSON gives **400 `MalformedRequest`** in Azure.
+- **App Insights after the deploy (P5 task 0 checked in Azure):**
+  - **The warm-up line arrived:** "Startup warm-up: database health Healthy in 5627 ms" at 02:01:07, followed by "Application started". In P4 it never did.
+  - **Parentless SQL:** about 100 per minute before the restart, then none from the new process. After 02:01:32 there were 0 parentless SQL dependencies against 102 inside requests (data ingested up to 02:04). The 46 parentless ones logged between 02:01:07 and 02:01:31 most likely came from the old process still polling during the restart. Both report the same role instance, so this is not proven.
+  - No Error-level traces since the deploy.
+- **AI mistakes in this step:**
+  - The AI's PowerShell commit command broke on double quotes in the message (Windows PowerShell 5.1 passes them to git unescaped). Nothing was committed, and it was redone from a message file.
+  - The AI used the KQL reserved word `last` as a column name again, the P4 mistake. This time the error was read at once instead of being waited on.
+  - The AI's download check printed a decoding error because PowerShell had already returned text. The error text itself showed the right content.
