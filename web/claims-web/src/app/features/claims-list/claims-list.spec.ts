@@ -47,6 +47,10 @@ describe('ClaimsList (S11.1, minimal)', () => {
     fixture = TestBed.createComponent(ClaimsList);
     el = fixture.nativeElement as HTMLElement;
     await fixture.whenStable();
+    http.expectOne(`${API}/api/reference/cause-of-loss-codes`).flush([
+      { code: 'COL-FIRE', name: 'Fire', perilCategory: 'Property', isActive: true, sortOrder: 1 },
+      { code: 'COL-VEH-COL', name: 'Vehicle collision', perilCategory: 'Auto', isActive: true, sortOrder: 2 },
+    ]);
   });
 
   afterEach(() => http.verify());
@@ -109,5 +113,89 @@ describe('ClaimsList (S11.1, minimal)', () => {
     const req = expectList();
     expect(req.request.params.get('page')).toBe('2');
     req.flush({ ...page([claim(3)], 45), page: 2 });
+  });
+
+  describe('filter bar (S11.1)', () => {
+    type Filters = {
+      filters: {
+        controls: Record<'status' | 'dateFrom' | 'dateTo' | 'handler' | 'cause', { setValue(v: unknown): void }>;
+      };
+    };
+    const f = () => (fixture.componentInstance as unknown as Filters).filters.controls;
+
+    beforeEach(async () => {
+      expectList().flush(page([claim(1)], 45));
+      await fixture.whenStable();
+    });
+
+    it('filters by loss date range and cause of loss at once, back on page 1', async () => {
+      el.querySelector<HTMLButtonElement>('.mat-mdc-paginator-navigation-next')!.click();
+      await fixture.whenStable();
+      expectList().flush({ ...page([claim(3)], 45), page: 2 });
+
+      f().dateFrom.setValue('2026-11-01');
+      await fixture.whenStable();
+      expectList().flush(page([claim(1)]));
+      f().dateTo.setValue('2026-11-30');
+      await fixture.whenStable();
+      expectList().flush(page([claim(1)]));
+      f().cause.setValue('COL-VEH-COL');
+      await fixture.whenStable();
+      const req = expectList();
+      expect(req.request.params.get('dateFrom')).toBe('2026-11-01');
+      expect(req.request.params.get('dateTo')).toBe('2026-11-30');
+      expect(req.request.params.get('causeOfLossCode')).toBe('COL-VEH-COL');
+      expect(req.request.params.get('page')).toBe('1');
+      req.flush(page([claim(1)]));
+    });
+
+    it('searches the assigned handler by text after a pause in typing', async () => {
+      f().handler.setValue('han');
+      f().handler.setValue('hannah ');
+      http.expectNone((r) => r.url === `${API}/api/claims`);
+      await new Promise((r) => setTimeout(r, 350));
+      await fixture.whenStable();
+      const req = expectList();
+      expect(req.request.params.get('assignedHandler')).toBe('hannah');
+      req.flush(page([]));
+    });
+
+    it('refuses a reversed date range without querying', async () => {
+      f().dateFrom.setValue('2026-12-01');
+      await fixture.whenStable();
+      expectList().flush(page([claim(1)]));
+      f().dateTo.setValue('2026-11-01');
+      await fixture.whenStable();
+      http.expectNone((r) => r.url === `${API}/api/claims`);
+      expect(el.querySelector('[data-testid="date-range-error"]')).not.toBeNull();
+    });
+
+    it('lists the cause codes, and Clear resets every filter in one query', async () => {
+      el.querySelector<HTMLElement>('[data-testid="cause-filter"]')!.click();
+      await fixture.whenStable();
+      expect(Array.from(document.querySelectorAll('mat-option')).map((o) => o.textContent?.trim())).toEqual([
+        'Any cause',
+        'Fire',
+        'Vehicle collision',
+      ]);
+      document.querySelectorAll<HTMLElement>('mat-option')[1].click();
+      await fixture.whenStable();
+      expectList().flush(page([claim(1)]));
+
+      f().status.setValue(['Open']);
+      await fixture.whenStable();
+      expectList().flush(page([claim(1)]));
+      await fixture.whenStable();
+      el.querySelector<HTMLButtonElement>('[data-testid="clear-filters"]')!.click();
+      await fixture.whenStable();
+      const reqs = http.match((r) => r.url === `${API}/api/claims`);
+      const last = reqs[reqs.length - 1];
+      for (const key of ['status', 'dateFrom', 'dateTo', 'assignedHandler', 'causeOfLossCode']) {
+        expect(last.request.params.has(key)).toBe(false);
+      }
+      expect(last.request.params.get('page')).toBe('1');
+      reqs.forEach((r) => r.flush(page([claim(1)])));
+      expect(el.querySelector<HTMLButtonElement>('[data-testid="clear-filters"]')!.disabled).toBe(true);
+    });
   });
 });

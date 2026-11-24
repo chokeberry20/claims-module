@@ -1,7 +1,8 @@
 import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
@@ -10,17 +11,38 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 import { Router, RouterLink } from '@angular/router';
-import { catchError, of, switchMap, tap } from 'rxjs';
+import { catchError, debounceTime, merge, of, switchMap, tap } from 'rxjs';
 import { ClaimsApiService } from '../../core/api/claims-api.service';
-import { CLAIM_STATUSES, ClaimListQuery, ClaimStatus, ClaimSummary, PagedResult } from '../../core/api/models';
+import { CauseOfLossCode, CLAIM_STATUSES, ClaimListQuery, ClaimStatus, ClaimSummary, PagedResult } from '../../core/api/models';
 import { MoneyPipe } from '../../shared/money.pipe';
 import { Badge, labelOf } from '../../shared/status-badge';
 
 export const PAGE_SIZES = [10, 20, 50];
+export const HANDLER_DEBOUNCE_MS = 300;
+
+export interface FilterValues {
+  readonly status: readonly ClaimStatus[];
+  readonly dateFrom: string;
+  readonly dateTo: string;
+  readonly handler: string;
+  readonly cause: string;
+}
+
+/** The S11.1 filter bar → GET /api/claims criteria; empty filters are left out. Dates are yyyy-MM-dd (UTC days). */
+export function listFilters(v: FilterValues): Partial<ClaimListQuery> {
+  const criteria: { -readonly [K in keyof ClaimListQuery]?: ClaimListQuery[K] } = {};
+  if (v.status.length) criteria.status = v.status;
+  if (v.dateFrom) criteria.dateFrom = v.dateFrom;
+  if (v.dateTo) criteria.dateTo = v.dateTo;
+  if (v.handler.trim()) criteria.assignedHandler = v.handler.trim();
+  if (v.cause) criteria.causeOfLossCode = v.cause;
+  return criteria;
+}
 
 /**
- * Claims dashboard, minimal (P6a task 38; S11.1): the seven columns, status filter, paging with the total
- * count and page size, row navigation and "Log New Claim". The full filter bar comes in P6b.
+ * Claims dashboard (S11.1): the seven columns, the filter bar (status multi-select, loss date range,
+ * assigned handler text, cause of loss), paging with the total count and page size, row navigation,
+ * "Log New Claim" and the empty state.
  */
 @Component({
   selector: 'app-claims-list',
@@ -32,6 +54,7 @@ export const PAGE_SIZES = [10, 20, 50];
     MatPaginatorModule,
     MatSelectModule,
     MatFormFieldModule,
+    MatInputModule,
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
@@ -48,16 +71,43 @@ export const PAGE_SIZES = [10, 20, 50];
       </a>
     </div>
 
-    <div class="filters">
-      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+    <form class="filters" [formGroup]="filters" data-testid="filter-bar">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="status">
         <mat-label>Status</mat-label>
-        <mat-select multiple [formControl]="statusFilter" data-testid="status-filter">
+        <mat-select multiple formControlName="status" data-testid="status-filter">
           @for (status of statuses; track status) {
             <mat-option [value]="status">{{ label(status) }}</mat-option>
           }
         </mat-select>
       </mat-form-field>
-    </div>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="date">
+        <mat-label>Loss date from</mat-label>
+        <input matInput type="date" formControlName="dateFrom" data-testid="date-from" />
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="date">
+        <mat-label>Loss date to</mat-label>
+        <input matInput type="date" formControlName="dateTo" data-testid="date-to" />
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="handler">
+        <mat-label>Assigned handler</mat-label>
+        <input matInput formControlName="handler" placeholder="Name contains…" data-testid="handler-filter" />
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="cause">
+        <mat-label>Cause of loss</mat-label>
+        <mat-select formControlName="cause" data-testid="cause-filter">
+          <mat-option [value]="''">Any cause</mat-option>
+          @for (c of causeCodes(); track c.code) {
+            <mat-option [value]="c.code">{{ c.name }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <button mat-button type="button" (click)="clearFilters()" [disabled]="!hasFilters()" data-testid="clear-filters">
+        <mat-icon>filter_alt_off</mat-icon> Clear
+      </button>
+    </form>
+    @if (dateRangeInvalid()) {
+      <p class="filter-error" role="alert" data-testid="date-range-error">"Loss date from" must be on or before "Loss date to".</p>
+    }
 
     <div class="table-wrap">
       <table mat-table [dataSource]="result().items" class="claims-table">
@@ -128,8 +178,11 @@ export const PAGE_SIZES = [10, 20, 50];
     :host { display: block; min-width: 1200px; }
     .header { display: flex; align-items: center; justify-content: space-between; }
     h1 { font: var(--mat-sys-headline-small); margin: 0 0 16px; }
-    .filters { display: flex; gap: 16px; margin-bottom: 8px; }
-    .filters mat-form-field { width: 320px; }
+    .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .filters .status { width: 240px; }
+    .filters .date { width: 170px; }
+    .filters .handler, .filters .cause { width: 200px; }
+    .filter-error { color: var(--mat-sys-error); margin: -4px 0 8px; }
     .table-wrap { position: relative; border: 1px solid var(--mat-sys-outline-variant); border-radius: 8px; overflow: hidden; }
     .claims-table { width: 100%; }
     .row { cursor: pointer; }
@@ -148,16 +201,31 @@ export class ClaimsList {
   protected readonly columns = ['claimNumber', 'policyNumber', 'clientName', 'lossDate', 'causeOfLoss', 'status', 'totalReserves'];
   protected readonly label = labelOf;
 
-  protected readonly statusFilter = new FormControl<ClaimStatus[]>([], { nonNullable: true });
+  protected readonly filters = new FormGroup({
+    status: new FormControl<ClaimStatus[]>([], { nonNullable: true }),
+    dateFrom: new FormControl('', { nonNullable: true }),
+    dateTo: new FormControl('', { nonNullable: true }),
+    handler: new FormControl('', { nonNullable: true }),
+    cause: new FormControl('', { nonNullable: true }),
+  });
+  /** Kept for the status filter's callers and tests. */
+  protected readonly statusFilter = this.filters.controls.status;
   protected readonly query = signal<ClaimListQuery>({ page: 1, pageSize: 20, status: [] });
   protected readonly result = signal<PagedResult<ClaimSummary>>({ items: [], page: 1, pageSize: 20, totalCount: 0 });
   protected readonly loading = signal(true);
   protected readonly failed = signal(false);
+  protected readonly dateRangeInvalid = signal(false);
+  protected readonly hasFilters = signal(false);
+  protected readonly causeCodes = toSignal(this.api.causeOfLossCodes().pipe(catchError(() => of<CauseOfLossCode[]>([]))), {
+    initialValue: [] as CauseOfLossCode[],
+  });
 
   constructor() {
-    this.statusFilter.valueChanges
+    // Selects and dates apply at once; the handler text waits for a pause in typing.
+    const c = this.filters.controls;
+    merge(c.status.valueChanges, c.dateFrom.valueChanges, c.dateTo.valueChanges, c.cause.valueChanges, c.handler.valueChanges.pipe(debounceTime(HANDLER_DEBOUNCE_MS)))
       .pipe(takeUntilDestroyed())
-      .subscribe((status) => this.query.update((q) => ({ ...q, status, page: 1 })));
+      .subscribe(() => this.applyFilters());
 
     toObservable(this.query)
       .pipe(
@@ -183,6 +251,21 @@ export class ClaimsList {
 
   protected onPage(event: PageEvent): void {
     this.query.update((q) => ({ ...q, page: event.pageSize === q.pageSize ? event.pageIndex + 1 : 1, pageSize: event.pageSize }));
+  }
+
+  protected clearFilters(): void {
+    this.filters.reset();
+  }
+
+  private applyFilters(): void {
+    const v = this.filters.getRawValue();
+    const criteria = listFilters(v);
+    this.hasFilters.set(Object.keys(criteria).length > 0);
+    this.dateRangeInvalid.set(!!v.dateFrom && !!v.dateTo && v.dateFrom > v.dateTo);
+    if (this.dateRangeInvalid()) {
+      return;
+    }
+    this.query.update((q) => ({ page: 1, pageSize: q.pageSize, ...criteria }));
   }
 
   protected reload(): void {
