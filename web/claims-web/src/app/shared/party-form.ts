@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input, output } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -6,10 +6,10 @@ import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import { PARTY_ROLES, PartyInput, PartyType } from '../../core/api/models';
-import { labelOf } from '../../shared/status-badge';
+import { PARTY_ROLES, PartyInput, PartyType } from '../core/api/models';
+import { labelOf } from './status-badge';
 
-/** Inline "Add party" row (S11.2 step 2): role, Person/Company, name fields, email, phone. */
+/** Inline "Add party" row (S11.2 step 2, S11.3 Parties tab): role, Person/Company, name fields, email, phone. */
 @Component({
   selector: 'app-party-form',
   imports: [ReactiveFormsModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatButtonModule, MatButtonToggleModule],
@@ -56,7 +56,7 @@ import { labelOf } from '../../shared/status-badge';
         <input matInput formControlName="phone" maxlength="50" />
       </mat-form-field>
       <div class="actions">
-        <button mat-flat-button type="submit" data-testid="party-add">Add</button>
+        <button mat-flat-button type="submit" [disabled]="busy()" data-testid="party-add">Add</button>
         <button mat-button type="button" (click)="cancelled.emit()">Cancel</button>
       </div>
     </form>
@@ -69,6 +69,8 @@ import { labelOf } from '../../shared/status-badge';
   `,
 })
 export class PartyForm {
+  /** The parent is saving the party: Add is disabled. The parent closes the form when it is done. */
+  readonly busy = input(false);
   readonly added = output<PartyInput>();
   readonly cancelled = output<void>();
 
@@ -113,6 +115,5 @@ export class PartyForm {
       email: text(v.email),
       phone: text(v.phone),
     });
-    this.form.reset({ role: 'Claimant', type: v.type });
   }
 }

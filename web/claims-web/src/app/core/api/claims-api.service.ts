@@ -7,6 +7,7 @@ import {
   AuditLogEntry,
   CauseOfLossCode,
   ClaimChangeResult,
+  ClaimChildAddedResult,
   ClaimDetail,
   ClaimDocument,
   ClaimListQuery,
@@ -15,6 +16,7 @@ import {
   CreateClaimRequest,
   CreateClaimResult,
   PagedResult,
+  PartyInput,
   PolicySummary,
   ReserveSubmission,
   ReserveTransactionState,
@@ -90,6 +92,22 @@ export class ClaimsApiService {
 
   create(request: CreateClaimRequest, options?: WriteOptions): Observable<CreateClaimResult> {
     return this.http.post<CreateClaimResult>(`${this.base}/api/claims`, request, { context: writeContext(options) });
+  }
+
+  /** PUT /api/claims/{id}/notes (Overview tab). Empty text clears the notes. */
+  updateNotes(claimId: string, notes: string | null, options?: WriteOptions): Observable<ClaimChangeResult> {
+    return this.http.put<ClaimChangeResult>(`${this.base}/api/claims/${claimId}/notes`, { notes }, { context: writeContext(options) });
+  }
+
+  // ------------------------------------------------------------ parties
+
+  addParty(claimId: string, party: PartyInput, options?: WriteOptions): Observable<ClaimChildAddedResult> {
+    return this.http.post<ClaimChildAddedResult>(`${this.base}/api/claims/${claimId}/parties`, party, { context: writeContext(options) });
+  }
+
+  /** Soft removal (IsActive = false); the last active Claimant can't be removed (BR-P-01, 422). */
+  removeParty(claimId: string, partyId: string): Observable<ClaimChangeResult> {
+    return this.http.delete<ClaimChangeResult>(`${this.base}/api/claims/${claimId}/parties/${partyId}`);
   }
 
   transitions(claimId: string): Observable<TransitionOption[]> {

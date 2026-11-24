@@ -49,7 +49,7 @@ import {
   toCreateRequest,
   toLocalDateTimeValue,
 } from './fnol-model';
-import { PartyForm } from './party-form';
+import { PartyForm } from '../../shared/party-form';
 import { RiskObjectForm } from './risk-object-form';
 
 export const MIN_DESCRIPTION_LENGTH = 20;

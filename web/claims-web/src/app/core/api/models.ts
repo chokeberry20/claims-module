@@ -75,6 +75,13 @@ export interface Warning {
   readonly field: string | null;
 }
 
+/** POST /parties and /risk-objects: the new child's id and the re-evaluated issues. */
+export interface ClaimChildAddedResult {
+  readonly claimId: string;
+  readonly childId: string;
+  readonly validationIssues: readonly ValidationIssue[];
+}
+
 export interface ClaimChangeResult {
   readonly claimId: string;
   readonly status: ClaimStatus;
@@ -214,10 +221,15 @@ export interface Party {
   readonly partyId: string;
   readonly role: PartyRole;
   readonly type: PartyType;
+  readonly firstName: string | null;
+  readonly lastName: string | null;
+  readonly companyName: string | null;
   readonly displayName: string;
   readonly email: string | null;
   readonly phone: string | null;
+  readonly notes: string | null;
   readonly isActive: boolean;
+  readonly removedAt: string | null;
 }
 
 export interface RiskObject {

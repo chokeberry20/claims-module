@@ -20,12 +20,14 @@ import { MoneyPipe } from '../../shared/money.pipe';
 import { Badge, labelOf } from '../../shared/status-badge';
 import { AuditTab } from './audit-tab';
 import { DocumentsTab } from './documents-tab';
+import { OverviewTab } from './overview-tab';
+import { PartiesTab } from './parties-tab';
 import { ReservesTab } from './reserves-tab';
 import { blockedReason, planTransition } from './transition-plan';
 
 /**
- * Claim detail, minimal (P6a task 40; S11.3): the header with the transition menu, and the Reserves,
- * Documents and Audit Log tabs. Overview and Parties tabs come in P6b.
+ * Claim detail (S11.3): the header with the transition menu, and the five tabs: Overview, Parties,
+ * Reserves, Documents and Audit Log.
  */
 @Component({
   selector: 'app-claim-detail',
@@ -41,6 +43,8 @@ import { blockedReason, planTransition } from './transition-plan';
     MatProgressSpinnerModule,
     Badge,
     MoneyPipe,
+    OverviewTab,
+    PartiesTab,
     ReservesTab,
     DocumentsTab,
     AuditTab,

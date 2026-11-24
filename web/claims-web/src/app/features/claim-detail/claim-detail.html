@@ -67,6 +67,14 @@
   </header>
 
   <mat-tab-group animationDuration="0ms" class="tabs">
+    <mat-tab label="Overview">
+      <app-overview-tab [claim]="c" (changed)="load()" />
+    </mat-tab>
+    <mat-tab label="Parties">
+      <ng-template matTabContent>
+        <app-parties-tab [claim]="c" (changed)="load()" />
+      </ng-template>
+    </mat-tab>
     <mat-tab label="Reserves">
       <app-reserves-tab [claim]="c" [userNames]="userNames()" [version]="version()" (changed)="load()" />
     </mat-tab>
