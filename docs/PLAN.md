@@ -1,7 +1,7 @@
 # Claims Module (FNOL + Reserve Management): Plan
 
 _Status: approved plan, revision 4 (2026-11-22). Implementation: P0–P5 done and reviewed (P5 accepted 2026-11-24); P6a tasks 36–40a done, awaiting your review (see the status line under each phase; details and run IDs in ai-log.md)._
-_Related: [DECISIONS.md](DECISIONS.md) (D-01…D-74), [ai-log.md](ai-log.md)._
+_Related: [DECISIONS.md](DECISIONS.md) (D-01…D-75), [ai-log.md](ai-log.md)._
 _Section numbering follows the approved plan: §7 (ambiguities and contradictions) is in DECISIONS.md, and §9 (AI log) is in ai-log.md._
 
 `files/` has two documents:

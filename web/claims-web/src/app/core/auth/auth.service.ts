@@ -54,9 +54,13 @@ export class AuthService {
 
   readonly tokenUrl = `${this.base}/api/auth/token`;
 
-  /** The demo users (names and roles, no passwords) for the sign-in form and the role switcher. */
-  users(): Observable<DemoUser[]> {
-    return this.http.get<DemoUser[]>(`${this.base}/api/auth/users`);
+  /**
+   * The demo users (names and roles, no passwords) for the sign-in form and the role switcher.
+   * `inlineErrors`: the caller shows a failure itself (the sign-in form), so no snackbar.
+   */
+  users(options?: { inlineErrors?: boolean }): Observable<DemoUser[]> {
+    const context = new HttpContext().set(SKIP_ERROR_SNACKBAR, options?.inlineErrors ?? false);
+    return this.http.get<DemoUser[]>(`${this.base}/api/auth/users`, { context });
   }
 
   /** Signs in through the form. Errors (401, 422, 429) are shown by the form, not by a snackbar. */

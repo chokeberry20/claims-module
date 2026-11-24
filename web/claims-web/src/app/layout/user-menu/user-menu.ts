@@ -64,7 +64,8 @@ export class UserMenu {
     // Load the directory once someone is signed in (the list itself is anonymous).
     effect(() => {
       if (this.auth.isSignedIn() && this.users().length === 0) {
-        this.auth.users().subscribe((users) => this.users.set(users));
+        // A failure shows the snackbar (error interceptor); the menu then only offers Sign out.
+        this.auth.users().subscribe({ next: (users) => this.users.set(users), error: () => undefined });
       }
     });
   }
